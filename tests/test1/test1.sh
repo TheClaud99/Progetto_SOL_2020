@@ -1,15 +1,17 @@
 #!/bin/bash
 BDIR=./
 SUPERMERCATO=./supermercato
-K=4
-P=1
-W=4
-C=2
+K=2
+C=20
+E=5
+T=500
+P=80
+S=30
 
 cd $BDIR
 
 echo "test"
-$SUPERMERCATO 
+$SUPERMERCATO $K $C $E $T $P $S
 PID=$!
 echo $PID
 
@@ -17,5 +19,3 @@ echo $PID
 # kill -SIGINT $PID
 # sleep 0.5
 # kill -SIGINT $PID
-
-
