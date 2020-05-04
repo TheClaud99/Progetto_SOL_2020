@@ -18,11 +18,14 @@ TARGETS		= supermercato \
 
 all: $(TARGETS)
 
-supermercato: supermercato.c
-	$(CC) $(CFLAGS) $(INCLUDES) $(OPTFLAGS) -o $@ $< $(LDFLAGS) $(LIBS)
+supermercato: supermercato.c libQueue.a
+	$(CC) $(CFLAGS) $(INCLUDES) $(OPTFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS)
 
 direttore: direttore.c
-	$(CC) $(CFLAGS) $(INCLUDES) $(OPTFLAGS) -o $@ $< $(LDFLAGS) $(LIBS)
+	$(CC) $(CFLAGS) $(INCLUDES) $(OPTFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS)
+
+libQueue.a: queue.o queue.h
+	$(AR) $(ARFLAGS) $@ $<
 
 test1: 
 	echo "eseguo test"
