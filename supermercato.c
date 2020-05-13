@@ -33,14 +33,17 @@ typedef struct threadClienteArgs
 	Cassa_t *casse;
 } threadClienteArgs_t;
 
-int FaiAcquisti(unsigned int *seed, int T, int P)
+void FaiAcquisti(Cliente_t *cliente, int T, int P)
 {
-	long r = 10 + rand_r(seed) % (T - 10);
+	unsigned int seed = cliente->id;
+	long r = 10 + rand_r(&seed) % (T - 10);
 	printf("Facendo acquisti per %ld ms \n", r);
 	struct timespec t = {0, r};
-	nanosleep(&t, NULL);
 
-	return rand_r(seed) % P;
+	Pthread_mutex_lock(&cliente->mtx);
+	nanosleep(&t, NULL);
+	cliente->nprod = rand_r(&seed) % P;
+	Pthread_mutex_unlock(&cliente->mtx);
 }
 
 void ServiCliente(Cassa_t *cassa, long t_cassiere)
@@ -66,12 +69,19 @@ void aspettaInCoda(Cliente_t *cliente, Cassa_t *casse, int K)
 {
 
 	// Il cliente si mette in coda alla cassa con fila più corta dopo averle controllate tutte
-	Cassa_t *cassa_scelta = casse;
+	Cassa_t *cassa_scelta = NULL;
 	for (int i = 0; i < K; ++i)
 	{
-		if (cassa_scelta->q->qlen > casse[i].q->qlen)
+		if ((cassa_scelta == NULL || cassa_scelta->q->qlen > casse[i].q->qlen) && casse[i].active)
 			cassa_scelta = casse + i;
 	}
+
+	if(cassa_scelta == NULL)
+	{
+		fprintf(stderr, "nessuna cassa attiva\n");
+		exit(EXIT_FAILURE);
+	}
+
 	push(cassa_scelta->q, cliente);
 
 	printf("%d messo in coda alla cassa %d\n", cliente->id, cassa_scelta->thid);
@@ -88,14 +98,13 @@ void aspettaInCoda(Cliente_t *cliente, Cassa_t *casse, int K)
 // thread cliente
 void *Cliente(void *arg)
 {
-	int myid = ((threadClienteArgs_t *)arg)->thid;
+	Cliente_t *cliente = malloc(sizeof(Cliente_t));
+	Cassa_t *casse = ((threadClienteArgs_t *)arg)->casse;
+	cliente->id = ((threadClienteArgs_t *)arg)->thid;
 	int K = ((threadClienteArgs_t *)arg)->K;
 	int T = ((threadClienteArgs_t *)arg)->T;
 	int P = ((threadClienteArgs_t *)arg)->P;
 	int S = ((threadClienteArgs_t *)arg)->S;
-	Cassa_t *casse = ((threadClienteArgs_t *)arg)->casse;
-	unsigned int seed = myid;
-	Cliente_t *cliente = malloc(sizeof(Cliente_t));
 
 	if(pthread_mutex_init(&cliente->mtx, NULL) != 0)
 	{
@@ -109,8 +118,7 @@ void *Cliente(void *arg)
 		exit(EXIT_FAILURE);
 	}
 
-	cliente->nprod = FaiAcquisti(&seed, T, P);
-	cliente->id = myid;
+	FaiAcquisti(cliente, T, P);
 
 	aspettaInCoda(cliente, casse, K);
 
