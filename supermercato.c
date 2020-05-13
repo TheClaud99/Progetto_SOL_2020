@@ -33,6 +33,16 @@ typedef struct threadClienteArgs
 	Cassa_t *casse;
 } threadClienteArgs_t;
 
+typedef struct threadDirettoreArgs
+{
+	int K;
+	int T;
+	int P;
+	int S;
+	Cassa_t *casse;
+} threadDirettoreArgs_t;
+
+
 void FaiAcquisti(Cliente_t *cliente, int T, int P)
 {
 	unsigned int seed = cliente->id;
@@ -121,6 +131,21 @@ void *Cliente(void *arg)
 	FaiAcquisti(cliente, T, P);
 
 	aspettaInCoda(cliente, casse, K);
+
+	fflush(stdout);
+	pthread_exit(NULL);
+}
+
+// thread cliente
+void *Direttore(void *arg)
+{
+	Cassa_t *casse = ((threadDirettoreArgs_t *)arg)->casse;
+	int K = ((threadDirettoreArgs_t *)arg)->K;
+	int T = ((threadDirettoreArgs_t *)arg)->T;
+	int P = ((threadDirettoreArgs_t *)arg)->P;
+	int S = ((threadDirettoreArgs_t *)arg)->S;
+
+	printf("Thread direttore started\n");
 
 	fflush(stdout);
 	pthread_exit(NULL);
@@ -228,6 +253,7 @@ int main(int argc, char **argv)
 	pthread_t *th_clienti = NULL;
 	pthread_t *th_new_clienti = NULL;
 	pthread_t *th_cassieri = NULL;
+	pthread_t th_direttore;
 	Cassa_t *casse = NULL;
 
 	if (argc == 8)
@@ -244,6 +270,13 @@ int main(int argc, char **argv)
 	initCassieri(&th_cassieri, &casse, K, TP);
 
 	initClienti(&th_clienti, K, C, T, P, S, casse);
+
+	threadDirettoreArgs_t thDirettoreARGS = {K, T, P, S, casse};
+	if (pthread_create(&th_direttore, NULL, Direttore, &thDirettoreARGS) != 0)
+	{
+		fprintf(stderr, "pthread_create failed\n");
+		exit(EXIT_FAILURE);
+	}
 
 	if (!th_cassieri || !th_clienti)
 	{
