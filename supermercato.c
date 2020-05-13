@@ -218,6 +218,7 @@ int main(int argc, char **argv)
 	int TP = 10;
 
 	pthread_t *th_clienti = NULL;
+	pthread_t *th_new_clienti = NULL;
 	pthread_t *th_cassieri = NULL;
 	Cassa_t *casse = NULL;
 
@@ -248,9 +249,21 @@ int main(int argc, char **argv)
 		{
 			fprintf(stderr, "pthread_join failed\n");
 		}
+
+		if(C - i == E)
+			initClienti(&th_new_clienti, K, E, T, P, S, casse);
+	}
+
+	for(int i = 0; i < E; i++)
+	{
+		if (pthread_join(th_new_clienti[i], NULL) == -1)
+		{
+			fprintf(stderr, "pthread_join failed\n");
+		}
 	}
 
 	free(th_clienti);
+	free(th_new_clienti);
 	free(th_cassieri);
 
 	return 0;
