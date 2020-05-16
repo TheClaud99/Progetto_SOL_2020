@@ -15,3 +15,9 @@ const int P=80;
 
 // Ogni quanti ms un cliente valuta se spostarti di cassa
 const int S=30;
+
+// Soglia per la chiusura di una cassa
+const int S1 = 2;
+
+// Soglia per l'apertura di una cassa
+const int S2 = 10;

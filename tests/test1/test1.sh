@@ -7,12 +7,14 @@ E=5
 T=500
 P=80
 S=30
+S1=2
+S2=10
 TP=10
 
 cd $BDIR
 
 echo "test"
-$SUPERMERCATO $K $C $E $T $P $S $TP
+$SUPERMERCATO $K $C $E $T $P $S $S1 $S2 $TP
 PID=$!
 echo $PID
 
