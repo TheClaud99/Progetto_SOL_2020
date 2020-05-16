@@ -171,7 +171,7 @@ void apriCassa(Cassa_t *casse)
 
 void chiudiCassa(Cassa_t *casse)
 {
-	printf("Chiudo cassa");
+	printf("Chiudo cassa\n");
 }
 
 // thread cliente
@@ -194,12 +194,12 @@ void *Direttore(void *arg)
 	{
 		count_max1cliente = 0;
 		count_minS2clienti = 0;
-		// for(int i = 0; i < K; i++)
-		// {
-		// 	int coda = length(casse[i].q);
-		// 	if (coda <= 1) count_max1cliente++;
-		// 	if (coda >= S2) count_minS2clienti++;
-		// }
+		for(int i = 0; i < K; i++)
+		{
+			int coda = length(casse[i].q);
+			if (coda <= 1) count_max1cliente++;
+			if (coda >= S2) count_minS2clienti++;
+		}
 
 		if(count_max1cliente >= S1)
 			apriCassa(casse);
