@@ -207,9 +207,6 @@ void *Direttore(void *arg)
 {
 	Cassa_t *casse = ((threadDirettoreArgs_t *)arg)->casse;
 	int K = ((threadDirettoreArgs_t *)arg)->K;
-	int T = ((threadDirettoreArgs_t *)arg)->T;
-	int P = ((threadDirettoreArgs_t *)arg)->P;
-	int S = ((threadDirettoreArgs_t *)arg)->S;
 	int S1 = ((threadDirettoreArgs_t *)arg)->S1;
 	int S2 = ((threadDirettoreArgs_t *)arg)->S2;
 
