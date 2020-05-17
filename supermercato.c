@@ -173,9 +173,31 @@ void *Cliente(void *arg)
 	pthread_exit(NULL);
 }
 
-void apriCassa(Cassa_t *casse)
+void apriCassa(Cassa_t *casse, int K)
 {
-	// printf("Apro cassa");
+	Cassa_t *cassa_scelta = NULL;
+	int i = 0;
+
+	// Prende la prima cassa chiusa della lista
+	while(cassa_scelta == NULL && i < K)
+	{
+		// Se la cassa e' disattiva
+		if (isActive(&casse[i]) == 0)
+			cassa_scelta = casse + i;
+		i++;
+	}
+
+	if (cassa_scelta == NULL)
+	{
+		fprintf(stderr, "nessuna cassa disattiva\n");
+		exit(EXIT_FAILURE);
+	}
+
+	Pthread_mutex_lock(&cassa_scelta->mtx);
+	cassa_scelta->active = 1;
+	Pthread_cond_signal(&cassa_scelta->cond);
+	Pthread_mutex_unlock(&cassa_scelta->mtx);
+	printf("Apro cassa %d\n", cassa_scelta->thid);
 }
 
 void chiudiCassa(Cassa_t *casse, int K)
@@ -231,13 +253,18 @@ void *Direttore(void *arg)
 		}
 
 		// printf("Aperte:%d\n", count_aperte);
+
+		// Se il numero di casse con un cliente solo in fila supera S1
+		// chiudo una cassa
 		if(count_max1cliente >= S1)
 			if(count_aperte > 1)
 				chiudiCassa(casse, K);
 
+		// Se esiste una cassa con almeno S2 clienti in fila
+		// apro un'altra cassa
 		if(count_minS2clienti > 0)
 			if(count_aperte < K)
-				apriCassa(casse);
+				apriCassa(casse, K);
 	}
 
 	fflush(stdout);
@@ -263,8 +290,7 @@ void *Cassiere(void *arg)
 		exit(EXIT_FAILURE);
 	}
 
-	int i = 0;
-	while (i < 100)
+	while (1)
 	{
 		Pthread_mutex_lock(&cassa->mtx);
 		// Se la cassa è attiva serve il prossimo cliente
@@ -282,9 +308,9 @@ void *Cassiere(void *arg)
 			printf("Coda svuotata\n");
 			// Aspetta di essere riattivata
 			Pthread_cond_wait(&cassa->cond, &cassa->mtx);
+			printf("Cassa riaperta\n");
 		}
 		Pthread_mutex_unlock(&cassa->mtx);
-		i++;
 	}
 
 	pthread_exit(NULL);
