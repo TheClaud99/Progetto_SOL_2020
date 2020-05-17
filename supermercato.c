@@ -40,9 +40,6 @@ typedef struct threadClienteArgs
 typedef struct threadDirettoreArgs
 {
 	int K;
-	int T;
-	int P;
-	int S;
 	int S1;
 	int S2;
 	Cassa_t *casse;
@@ -154,7 +151,7 @@ void *Cliente(void *arg)
 	int K = ((threadClienteArgs_t *)arg)->K;
 	int T = ((threadClienteArgs_t *)arg)->T;
 	int P = ((threadClienteArgs_t *)arg)->P;
-	int S = ((threadClienteArgs_t *)arg)->S;
+	// int S = ((threadClienteArgs_t *)arg)->S;
 
 	if (pthread_mutex_init(&cliente->mtx, NULL) != 0)
 	{
@@ -370,22 +367,22 @@ int main(int argc, char **argv)
 	ec_meno1( sigaction(SIGINT,&s,NULL), "Signal handler error" );
 
 	// Numero di casse
-	int K = 6;
+	int K = 2;
 
 	// Numero max di clienti nel supermercato allo stesso momento
-	int C = 50;
+	int C = 20;
 
 	// Clienti che vengono fatti entrare quando si arriva a C-E clienti
-	int E = 3;
+	int E = 5;
 
 	// Tempo impiegato da un cliente per fare acquisti t : 10 < t < T
-	int T = 200;
+	int T = 500;
 
 	// Prodotti acquistati da un cliente p : 0 < p < P
-	int P = 100;
+	int P = 80;
 
 	// Ogni quanti ms un cliente valuta se spostarti di cassa
-	int S = 20;
+	int S = 30;
 
 	// Soglia per la chiusura di una cassa
 	int S1 = 2;
@@ -417,7 +414,7 @@ int main(int argc, char **argv)
 
 	initCassieri(&th_cassieri, &casse, K, TP);
 
-	threadDirettoreArgs_t thDirettoreARGS = {K, T, P, S, S1, S2, casse};
+	threadDirettoreArgs_t thDirettoreARGS = {K, S1, S2, casse};
 	if (pthread_create(&th_direttore, NULL, Direttore, &thDirettoreARGS) != 0)
 	{
 		fprintf(stderr, "pthread_create failed\n");
