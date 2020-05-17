@@ -48,11 +48,21 @@ typedef struct threadDirettoreArgs
 	Cassa_t *casse;
 } threadDirettoreArgs_t;
 
+
+char isActive(Cassa_t *cassa)
+{
+	char active;
+	if(cassa == NULL)
+		return 0;
+	
+	Pthread_mutex_lock(&cassa->mtx);
+	active = (cassa->active == 1);
+	Pthread_mutex_unlock(&cassa->mtx);
+	return active;
+}
+
 void emptyQueue(Cassa_t *cassa)
 {
-	// Acquisice il lock per evitare che la cassa venga riattivata
-	// mentre svutoa la coda
-	Pthread_mutex_lock(&cassa->mtx);
 	while (cassa->q->tail != cassa->q->head)
 	{
 		Cliente_t *cliente;
@@ -63,7 +73,6 @@ void emptyQueue(Cassa_t *cassa)
 			Pthread_mutex_unlock(&cliente->mtx);
 		}
 	}
-	Pthread_mutex_unlock(&cassa->mtx);
 }
 
 void FaiAcquisti(Cliente_t *cliente, int T, int P)
@@ -94,7 +103,7 @@ void ServiCliente(Cassa_t *cassa, long t_cassiere)
 		Pthread_cond_signal(&cliente->cond);
 		Pthread_mutex_unlock(&cliente->mtx);
 
-		printf("Servito cliente %d\n", cliente->id);
+		printf("Cassa %d: Servito cliente %d\n", cassa->thid, cliente->id);
 	}
 }
 
@@ -106,7 +115,7 @@ void scegliCassa(Cliente_t *cliente, Cassa_t *casse, int K)
 	for (int i = 0; i < K; ++i)
 	{
 		// Se la cassa e' attiva e se la cassa scelta e' NULL oppure con coda più lunga viene scelta
-		if ((cassa_scelta == NULL || length(cassa_scelta->q) > length(casse[i].q)) && casse[i].active)
+		if ((cassa_scelta == NULL || length(cassa_scelta->q) > length(casse[i].q)) && isActive(&casse[i]))
 			cassa_scelta = casse + i;
 	}
 
@@ -169,9 +178,27 @@ void apriCassa(Cassa_t *casse)
 	// printf("Apro cassa");
 }
 
-void chiudiCassa(Cassa_t *casse)
+void chiudiCassa(Cassa_t *casse, int K)
 {
-	printf("Chiudo cassa\n");
+	Cassa_t *cassa_scelta = NULL;
+	for (int i = 0; i < K; ++i)
+	{
+		// Se la cassa e' attiva e se la cassa scelta e' NULL oppure con coda più lunga viene scelta
+		if ((cassa_scelta == NULL || length(cassa_scelta->q) > length(casse[i].q)) && casse[i].active)
+			cassa_scelta = casse + i;
+	}
+
+	if (cassa_scelta == NULL)
+	{
+		fprintf(stderr, "nessuna cassa attiva\n");
+		exit(EXIT_FAILURE);
+	}
+
+	Pthread_mutex_lock(&cassa_scelta->mtx);
+	cassa_scelta->active = 0;
+	Pthread_mutex_unlock(&cassa_scelta->mtx);
+
+	printf("Chiudo cassa %d\n", cassa_scelta->thid);
 }
 
 // thread cliente
@@ -187,6 +214,7 @@ void *Direttore(void *arg)
 
 	int count_max1cliente;
 	int count_minS2clienti;
+	int count_aperte;
 
 	printf("Thread direttore started\n");
 
@@ -194,18 +222,24 @@ void *Direttore(void *arg)
 	{
 		count_max1cliente = 0;
 		count_minS2clienti = 0;
+		count_aperte = 0;
 		for(int i = 0; i < K; i++)
 		{
 			int coda = length(casse[i].q);
 			if (coda <= 1) count_max1cliente++;
 			if (coda >= S2) count_minS2clienti++;
+			if(isActive(&casse[i]) == 1)
+				count_aperte++;
 		}
 
+		// printf("Aperte:%d\n", count_aperte);
 		if(count_max1cliente >= S1)
-			apriCassa(casse);
+			if(count_aperte < K)
+				apriCassa(casse);
 
 		if(count_minS2clienti > 0)
-			chiudiCassa(casse);
+			if(count_aperte > 1)
+				chiudiCassa(casse, K);
 	}
 
 	fflush(stdout);
@@ -235,16 +269,20 @@ void *Cassiere(void *arg)
 	while (i < 100)
 	{
 		Pthread_mutex_lock(&cassa->mtx);
-		if (cassa->active)
-			// Se la cassa è attiva serve il prossimo cliente
+		// Se la cassa è attiva serve il prossimo cliente
+		if (cassa->active == 1)
+		{
+			Pthread_mutex_unlock(&cassa->mtx);
 			ServiCliente(cassa, t_cassiere);
+		}
 		else
 		{
 			emptyQueue(cassa);
+			printf("Coda svuotata\n");
 			// Aspetta di essere riattivata
 			Pthread_cond_wait(&cassa->cond, &cassa->mtx);
+			Pthread_mutex_unlock(&cassa->mtx);
 		}
-		Pthread_mutex_unlock(&cassa->mtx);
 		i++;
 	}
 
