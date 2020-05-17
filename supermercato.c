@@ -125,9 +125,12 @@ void scegliCassa(Cliente_t *cliente, Cassa_t *casse, int K)
 		exit(EXIT_FAILURE);
 	}
 
+	Pthread_mutex_lock(&cassa_scelta->mtx);
 	push(cassa_scelta->q, cliente);
+	Pthread_cond_signal(&cassa_scelta->cond);
+	Pthread_mutex_unlock(&cassa_scelta->mtx);
 
-	printf("%d messo in coda alla cassa %d\n", cliente->id, cassa_scelta->thid);
+	// printf("%d messo in coda alla cassa %d\n", cliente->id, cassa_scelta->thid);
 }
 
 void aspettaInCoda(Cliente_t *cliente, Cassa_t *casse, int K)
@@ -184,7 +187,7 @@ void chiudiCassa(Cassa_t *casse, int K)
 	for (int i = 0; i < K; ++i)
 	{
 		// Se la cassa e' attiva e se la cassa scelta e' NULL oppure con coda più lunga viene scelta
-		if ((cassa_scelta == NULL || length(cassa_scelta->q) > length(casse[i].q)) && casse[i].active)
+		if ((cassa_scelta == NULL || length(cassa_scelta->q) > length(casse[i].q)) && isActive(&casse[i]))
 			cassa_scelta = casse + i;
 	}
 
@@ -196,6 +199,7 @@ void chiudiCassa(Cassa_t *casse, int K)
 
 	Pthread_mutex_lock(&cassa_scelta->mtx);
 	cassa_scelta->active = 0;
+	Pthread_cond_signal(&cassa_scelta->cond);
 	Pthread_mutex_unlock(&cassa_scelta->mtx);
 
 	printf("Chiudo cassa %d\n", cassa_scelta->thid);
@@ -234,12 +238,12 @@ void *Direttore(void *arg)
 
 		// printf("Aperte:%d\n", count_aperte);
 		if(count_max1cliente >= S1)
-			if(count_aperte < K)
-				apriCassa(casse);
-
-		if(count_minS2clienti > 0)
 			if(count_aperte > 1)
 				chiudiCassa(casse, K);
+
+		if(count_minS2clienti > 0)
+			if(count_aperte < K)
+				apriCassa(casse);
 	}
 
 	fflush(stdout);
@@ -272,8 +276,11 @@ void *Cassiere(void *arg)
 		// Se la cassa è attiva serve il prossimo cliente
 		if (cassa->active == 1)
 		{
-			Pthread_mutex_unlock(&cassa->mtx);
-			ServiCliente(cassa, t_cassiere);
+			if(length(cassa->q) > 0)
+				ServiCliente(cassa, t_cassiere);
+			else
+				// Aspetta che un cliente si metta in coda o di venire disattivata
+				Pthread_cond_wait(&cassa->cond, &cassa->mtx);
 		}
 		else
 		{
@@ -281,8 +288,8 @@ void *Cassiere(void *arg)
 			printf("Coda svuotata\n");
 			// Aspetta di essere riattivata
 			Pthread_cond_wait(&cassa->cond, &cassa->mtx);
-			Pthread_mutex_unlock(&cassa->mtx);
 		}
+		Pthread_mutex_unlock(&cassa->mtx);
 		i++;
 	}
 
