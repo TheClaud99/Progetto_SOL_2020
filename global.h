@@ -1,0 +1,64 @@
+#if !defined(GLOBAL_H)
+#define GLOBAL_H
+
+#include <pthread.h>
+#include "utils.h"
+#include "queue.h"
+
+typedef struct Cassa
+{
+	int thid;
+	int TP;				 // Tempo impiegato per ogni prodotto
+	Queue_t *q;			 // Fila alla cassa
+	char active;		 // Dice se la cassa è aperta
+	pthread_mutex_t mtx; // Mutua esclusione per accedere ad active
+	pthread_cond_t cond; // Condizione per segnalare che il cliente è stato servito
+} Cassa_t;
+
+typedef struct Cliente
+{
+	int id;
+	int nprod;			 // Numero dei prodotti che il cliente ha acquistato
+	char servito;		 // 1 se il cliente è stato servito, 0 se deve ancora esserlo
+	pthread_mutex_t mtx; // Mutua esclusione per accedere a servito
+	pthread_cond_t cond; // Condizione per segnalare che il cliente è stato servito
+} Cliente_t;
+
+typedef struct threadClienteArgs
+{
+	int thid;
+	int K;
+	int T;
+	int P;
+	int S;
+	Cassa_t *casse;
+} threadClienteArgs_t;
+
+typedef struct threadDirettoreArgs
+{
+	int K;
+	int S1;
+	int S2;
+	Cassa_t *casse;
+} threadDirettoreArgs_t;
+
+
+char isActive(Cassa_t *cassa)
+{
+	char active;
+	if(cassa == NULL)
+		return 0;
+	
+	Pthread_mutex_lock(&cassa->mtx);
+	active = (cassa->active == 1);
+	Pthread_mutex_unlock(&cassa->mtx);
+	return active;
+}
+
+void printCasse(Cassa_t *casse, int K) {
+    for(int i = 0; i < K; i++) {
+        printf(" id: %d \n active: %d \n lenght: %ld \n ", casse[i].thid, casse[i].active, length(casse[i].q));
+    }
+}
+
+#endif /* GLOBAL_H */

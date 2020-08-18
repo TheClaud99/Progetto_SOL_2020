@@ -5,58 +5,10 @@
 #include <errno.h>
 #include <signal.h>
 #include <string.h>
-#include "utils.h"
+#include <conn.h>
 #include "queue.h"
+#include "global.h"
 
-typedef struct Cassa
-{
-	int thid;
-	int TP;				 // Tempo impiegato per ogni prodotto
-	Queue_t *q;			 // Fila alla cassa
-	char active;		 // Dice se la cassa è aperta
-	pthread_mutex_t mtx; // Mutua esclusione per accedere ad active
-	pthread_cond_t cond; // Condizione per segnalare che il cliente è stato servito
-} Cassa_t;
-
-typedef struct Cliente
-{
-	int id;
-	int nprod;			 // Numero dei prodotti che il cliente ha acquistato
-	char servito;		 // 1 se il cliente è stato servito, 0 se deve ancora esserlo
-	pthread_mutex_t mtx; // Mutua esclusione per accedere a servito
-	pthread_cond_t cond; // Condizione per segnalare che il cliente è stato servito
-} Cliente_t;
-
-typedef struct threadClienteArgs
-{
-	int thid;
-	int K;
-	int T;
-	int P;
-	int S;
-	Cassa_t *casse;
-} threadClienteArgs_t;
-
-typedef struct threadDirettoreArgs
-{
-	int K;
-	int S1;
-	int S2;
-	Cassa_t *casse;
-} threadDirettoreArgs_t;
-
-
-char isActive(Cassa_t *cassa)
-{
-	char active;
-	if(cassa == NULL)
-		return 0;
-	
-	Pthread_mutex_lock(&cassa->mtx);
-	active = (cassa->active == 1);
-	Pthread_mutex_unlock(&cassa->mtx);
-	return active;
-}
 
 void emptyQueue(Cassa_t *cassa)
 {
@@ -87,6 +39,7 @@ void FaiAcquisti(Cliente_t *cliente, int T, int P)
 
 void ServiCliente(Cassa_t *cassa, long t_cassiere)
 {
+	printf("Lunghezza coda alla cassa %d: %ld\n", cassa->thid, length(cassa->q));
 	// Prende il primo cliente in coda
 	Cliente_t *cliente = pop(cassa->q);
 
@@ -380,6 +333,30 @@ static void gestore (int signum) {
 	exit(EXIT_FAILURE);
 }
 
+void sendCasse(Cassa_t cassa, int K) {
+	struct sockaddr_un serv_addr;
+	int sockfd;
+	
+	SYSCALL(sockfd, socket(AF_UNIX, SOCK_STREAM, 0), "socket");
+	memset(&serv_addr, '0', sizeof(serv_addr));
+
+	serv_addr.sun_family = AF_UNIX;
+	strncpy(serv_addr.sun_path, SOCKNAME, strlen(SOCKNAME) + 1);
+
+	int notused;
+	int cassa_lenght = length(cassa.q);
+	int operation;
+	SYSCALL(notused, connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)), "connect");
+
+	SYSCALL(notused, writen(sockfd, &cassa_lenght, sizeof(int)), "writen");
+
+	SYSCALL(notused, readn(sockfd, &operation, sizeof(int)), "read");
+
+	printf("connection result: %d\n", operation);
+
+	close(sockfd);
+}
+
 int main(int argc, char **argv)
 {
 	struct sigaction s;
@@ -436,6 +413,10 @@ int main(int argc, char **argv)
 	}
 
 	initCassieri(&th_cassieri, &casse, K, TP);
+
+	for(int i = 0; i < K; i++) {
+		sendCasse(casse[i], K);
+	}
 
 	threadDirettoreArgs_t thDirettoreARGS = {K, S1, S2, casse};
 	if (pthread_create(&th_direttore, NULL, Direttore, &thDirettoreARGS) != 0)

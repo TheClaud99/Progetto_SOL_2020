@@ -18,10 +18,10 @@ TARGETS		= supermercato \
 
 all: $(TARGETS)
 
-supermercato: supermercato.c libQueue.a utils.h
+supermercato: supermercato.c libQueue.a utils.h global.h
 	$(CC) $(CFLAGS) $(INCLUDES) $(OPTFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS)
 
-direttore: direttore.c
+direttore: direttore.c libQueue.a utils.h global.h
 	$(CC) $(CFLAGS) $(INCLUDES) $(OPTFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS)
 
 libQueue.a: queue.o queue.h

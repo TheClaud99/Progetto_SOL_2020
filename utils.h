@@ -1,3 +1,6 @@
+#if !defined(UTILS_H)
+#define UTILS_H
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
@@ -67,3 +70,5 @@ void Pthread_cond_signal(pthread_cond_t *cond)
         pthread_exit((void*)&errno);
     }
 }
+
+#endif /* UTILS_H */

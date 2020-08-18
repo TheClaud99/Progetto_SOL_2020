@@ -1,6 +1,7 @@
 #!/bin/bash
 BDIR=./
 SUPERMERCATO=./supermercato
+DIRETTORE=./direttore
 K=2
 C=20
 E=5
@@ -14,6 +15,7 @@ TP=10
 cd $BDIR
 
 echo "test"
+$DIRETTORE $K $S1 $S2 &
 $SUPERMERCATO $K $C $E $T $P $S $S1 $S2 $TP
 PID=$!
 echo $PID
