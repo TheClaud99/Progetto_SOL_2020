@@ -9,6 +9,11 @@
 #include "queue.h"
 #include "global.h"
 
+typedef struct thInvia_args
+{
+	Cassa_t *cassa;
+	long intervallo;
+} thInvia_args_t;
 
 void emptyQueue(Cassa_t *cassa)
 {
@@ -60,7 +65,7 @@ void ServiCliente(Cassa_t *cassa, long t_cassiere)
 
 void scegliCassa(Cliente_t *cliente, Cassa_t *casse, int K)
 {
-	// Il cliente si mette in coda alla cassa con fila più corta dopo averle controllate tutte
+	// Il cliente controlla la cassa con fila più corta
 	Cassa_t *cassa_scelta = NULL;
 	for (int i = 0; i < K; ++i)
 	{
@@ -75,6 +80,7 @@ void scegliCassa(Cliente_t *cliente, Cassa_t *casse, int K)
 		exit(EXIT_FAILURE);
 	}
 
+	// Si mette in fila mandando un segnale al cassiere
 	Pthread_mutex_lock(&cassa_scelta->mtx);
 	push(cassa_scelta->q, cliente);
 	Pthread_cond_signal(&cassa_scelta->cond);
@@ -224,10 +230,54 @@ void *Direttore(void *arg)
 	pthread_exit(NULL);
 }
 
+int sendCassa(Cassa_t cassa) {
+	struct sockaddr_un serv_addr;
+	int sockfd;
+	
+	SYSCALL(sockfd, socket(AF_UNIX, SOCK_STREAM, 0), "socket");
+	memset(&serv_addr, '0', sizeof(serv_addr));
+
+	serv_addr.sun_family = AF_UNIX;
+	strncpy(serv_addr.sun_path, SOCKNAME, strlen(SOCKNAME) + 1);
+
+	int notused;
+	int cassa_lenght = length(cassa.q);
+	int operation;
+	SYSCALL(notused, connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)), "connect");
+
+	SYSCALL(notused, writen(sockfd, &cassa_lenght, sizeof(int)), "writen");
+
+	SYSCALL(notused, readn(sockfd, &operation, sizeof(int)), "read");
+
+	printf("connection result: %d\n", operation);
+
+	close(sockfd);
+
+	return operation;
+}
+
+void *InviaCoda(void *args) {
+	long intervallo = ((thInvia_args_t *)args)->intervallo;
+	Cassa_t *cassa = ((thInvia_args_t *)args)->cassa;
+	struct timespec t = {0, intervallo};
+	while (1)
+	{
+		if(cassa->active == 1) {
+			int operation = sendCassa(*cassa);
+			printf("%d\n", operation);
+		}
+
+		nanosleep(&t, NULL);
+	}
+}
+
 // thread cassiere
 void *Cassiere(void *arg)
 {
 	Cassa_t *cassa = (Cassa_t *)arg;
+	pthread_t th_invia_coda;
+	int intervallo = 500;
+	thInvia_args_t inviaCodaARGS = {cassa, intervallo};
 	unsigned int seed = cassa->thid;
 	long t_cassiere = 20 + rand_r(&seed) % 60;
 
@@ -240,6 +290,12 @@ void *Cassiere(void *arg)
 	if (pthread_cond_init(&cassa->cond, NULL) != 0)
 	{
 		fprintf(stderr, "pthread_cond_init failed\n");
+		exit(EXIT_FAILURE);
+	}
+
+	if (pthread_create(&th_invia_coda, NULL, InviaCoda, &inviaCodaARGS) != 0)
+	{
+		fprintf(stderr, "pthread_create failed\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -333,30 +389,6 @@ static void gestore (int signum) {
 	exit(EXIT_FAILURE);
 }
 
-void sendCasse(Cassa_t cassa, int K) {
-	struct sockaddr_un serv_addr;
-	int sockfd;
-	
-	SYSCALL(sockfd, socket(AF_UNIX, SOCK_STREAM, 0), "socket");
-	memset(&serv_addr, '0', sizeof(serv_addr));
-
-	serv_addr.sun_family = AF_UNIX;
-	strncpy(serv_addr.sun_path, SOCKNAME, strlen(SOCKNAME) + 1);
-
-	int notused;
-	int cassa_lenght = length(cassa.q);
-	int operation;
-	SYSCALL(notused, connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)), "connect");
-
-	SYSCALL(notused, writen(sockfd, &cassa_lenght, sizeof(int)), "writen");
-
-	SYSCALL(notused, readn(sockfd, &operation, sizeof(int)), "read");
-
-	printf("connection result: %d\n", operation);
-
-	close(sockfd);
-}
-
 int main(int argc, char **argv)
 {
 	struct sigaction s;
@@ -413,10 +445,6 @@ int main(int argc, char **argv)
 	}
 
 	initCassieri(&th_cassieri, &casse, K, TP);
-
-	for(int i = 0; i < K; i++) {
-		sendCasse(casse[i], K);
-	}
 
 	threadDirettoreArgs_t thDirettoreARGS = {K, S1, S2, casse};
 	if (pthread_create(&th_direttore, NULL, Direttore, &thDirettoreARGS) != 0)

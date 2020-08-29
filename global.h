@@ -12,7 +12,7 @@ typedef struct Cassa
 	Queue_t *q;			 // Fila alla cassa
 	char active;		 // Dice se la cassa è aperta
 	pthread_mutex_t mtx; // Mutua esclusione per accedere ad active
-	pthread_cond_t cond; // Condizione per segnalare che il cliente è stato servito
+	pthread_cond_t cond; // Segnala la disattivazione o l'arrivo di un cliente
 } Cassa_t;
 
 typedef struct Cliente
