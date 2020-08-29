@@ -23,15 +23,6 @@
 #define BUFSIZE 256
 #endif
 
-/** 
- * tipo del messaggio
- */
-typedef struct msg {
-    int len;
-    char *str;
-} msg_t;
-
-
 static inline int readn(long fd, void *buf, size_t size) {
     size_t left = size;
     int r;

@@ -239,13 +239,13 @@ int sendCassa(Cassa_t cassa) {
 
 	serv_addr.sun_family = AF_UNIX;
 	strncpy(serv_addr.sun_path, SOCKNAME, strlen(SOCKNAME) + 1);
-
+	msg_t message = {length(cassa.q), cassa.thid};
 	int notused;
-	int cassa_lenght = length(cassa.q);
+	
 	int operation;
 	SYSCALL(notused, connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)), "connect");
 
-	SYSCALL(notused, writen(sockfd, &cassa_lenght, sizeof(int)), "writen");
+	SYSCALL(notused, writen(sockfd, &message, sizeof(msg_t)), "writen");
 
 	SYSCALL(notused, readn(sockfd, &operation, sizeof(int)), "read");
 
@@ -264,7 +264,6 @@ void *InviaCoda(void *args) {
 	{
 		if(cassa->active == 1) {
 			int operation = sendCassa(*cassa);
-			printf("%d\n", operation);
 		}
 
 		nanosleep(&t, NULL);

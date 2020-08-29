@@ -5,6 +5,9 @@
 #include "utils.h"
 #include "queue.h"
 
+#define APRICASSA   1
+#define CHIUDICASSA 2
+
 typedef struct Cassa
 {
 	int thid;
@@ -41,6 +44,14 @@ typedef struct threadDirettoreArgs
 	int S2;
 	Cassa_t *casse;
 } threadDirettoreArgs_t;
+
+/** 
+ * tipo del messaggio
+ */
+typedef struct msg {
+    int len;
+    int cassa_id;
+} msg_t;
 
 
 char isActive(Cassa_t *cassa)

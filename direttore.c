@@ -175,15 +175,14 @@ int main(int argc, char *argv[])
 	{
 		SYSCALL(connfd, accept(listenfd, (struct sockaddr *)NULL, NULL), "accept");
 
-		int cassa_length;
-		SYSCALL(notused, readn(connfd, &cassa_length, sizeof(int)), "readn");
+		msg_t message;
+		SYSCALL(notused, readn(connfd, &message, sizeof(msg_t)), "readn");
 
-		printf("%d\n", cassa_length);
+		// printf("%d, %d\n", message.len, message.cassa_id);
 
 		SYSCALL(notused, writen(connfd, &n, sizeof(int)), "writen");
 
 		close(connfd);
-		printf("connection done\n");
 	} while (1);
 
 	return 0;
