@@ -102,6 +102,7 @@ void cleanup()
 {
 	unlink(SOCKNAME);
 }
+
 int cmd(const char str[], char *buf)
 {
 	int tobc[2];
@@ -135,17 +136,53 @@ int cmd(const char str[], char *buf)
 	return n;
 }
 
+int calcolaScelta(int *casse, int K, int S1, int S2)
+{
+	int count_max1cliente = 0;
+	int count_minS2clienti = 0;
+
+	for (int i = 0; i < K; i++)
+	{
+		if (casse[i] <= 1)
+			count_max1cliente++;
+		if (casse[i] >= S2)
+			count_minS2clienti++;
+	}
+
+	// printf("Aperte:%d\n", count_aperte);
+
+	// Se il numero di casse con un cliente solo in fila supera S1
+	// chiudo una cassa
+	if (count_max1cliente >= S1)
+		return CHIUDICASSA;
+
+	// Se esiste una cassa con almeno S2 clienti in fila
+	// apro un'altra cassa
+	if (count_minS2clienti > 0)
+		return APRICASSA;
+
+	return 0;
+}
+
 int main(int argc, char *argv[])
 {
 
 	// Numero di casse
-	const int K=2;
+	int K = 2;
 
 	// Soglia per la chiusura di una cassa
-	const int S1 = 2;
+	int S1 = 2;
 
 	// Soglia per l'apertura di una cassa
-	const int S2 = 10;
+	int S2 = 10;
+
+	if (argc == 3)
+	{
+		K = atoi(argv[1]);
+		S1 = atoi(argv[2]);
+		S2 = atoi(argv[3]);
+	}
+
 
 	// cancello il socket file se esiste
 	cleanup();
@@ -153,6 +190,9 @@ int main(int argc, char *argv[])
 	atexit(cleanup);
 
 	int listenfd;
+
+	int *casse = malloc(K * sizeof(int));
+
 	// creo il socket
 	SYSCALL(listenfd, socket(AF_UNIX, SOCK_STREAM, 0), "socket");
 
@@ -169,7 +209,7 @@ int main(int argc, char *argv[])
 	// setto il socket in modalita' passiva e definisco un n. massimo di connessioni pendenti
 	SYSCALL(notused, listen(listenfd, 1), "listen");
 
-	int connfd, n = 1;
+	int connfd;
 
 	do
 	{
@@ -178,9 +218,13 @@ int main(int argc, char *argv[])
 		msg_t message;
 		SYSCALL(notused, readn(connfd, &message, sizeof(msg_t)), "readn");
 
+		casse[message.cassa_id - 1] = message.len;
+
+		int scelta = calcolaScelta(casse, K, S1, S2);
+
 		// printf("%d, %d\n", message.len, message.cassa_id);
 
-		SYSCALL(notused, writen(connfd, &n, sizeof(int)), "writen");
+		SYSCALL(notused, writen(connfd, &scelta, sizeof(int)), "writen");
 
 		close(connfd);
 	} while (1);
