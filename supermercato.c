@@ -6,6 +6,7 @@
 #include <signal.h>
 #include <string.h>
 #include <conn.h>
+#include <time.h>
 #include "queue.h"
 #include "global.h"
 
@@ -14,6 +15,55 @@ typedef struct thInvia_args
 	Cassa_t *cassa;
 	long intervallo;
 } thInvia_args_t;
+
+int calcolaPosizioneInCoda(Queue_t *q, int id) {
+	int pos = 1;
+	Node_t *p = (Node_t *)q->tail;
+	int found = 0;
+	while (found != 1 && p != NULL)
+    {
+        if (((Cliente_t*)p->data)->id == id) found = 1;
+		else
+		{
+			pos++;
+			p = p->next;
+		}
+    }
+
+	if (found == 1) return pos;
+
+	return -1;
+}
+
+void removeClientFromQueue(Queue_t *q, int id)
+{
+	Node_t *p = (Node_t *)q->tail;
+	Node_t *prec = NULL;
+	int found = 0;
+	while (found != 1 && p != NULL)
+    {
+        if (((Cliente_t*)p->data)->id == id) found = 1;
+		else
+		{
+			prec = p;
+			p = p->next;
+		}
+    }
+
+	if (found == 1)
+	{
+		if (prec == NULL)
+		{
+			q->tail = q->tail->next;
+			free(p);
+		}
+		else
+		{
+			prec->next = p->next;
+			free(p);
+		}
+	}
+}
 
 void emptyQueue(Cassa_t *cassa)
 {
@@ -62,11 +112,10 @@ void ServiCliente(Cassa_t *cassa, long t_cassiere)
 	}
 }
 
-
-void scegliCassa(Cliente_t *cliente, Cassa_t *casse, int K)
-{
+Cassa_t* getMinCoda(Cassa_t *casse, int K) {
 	// Il cliente controlla la cassa con fila più corta
 	Cassa_t *cassa_scelta = NULL;
+
 	for (int i = 0; i < K; ++i)
 	{
 		// Se la cassa e' attiva e se la cassa scelta e' NULL oppure con coda più lunga viene scelta
@@ -74,29 +123,59 @@ void scegliCassa(Cliente_t *cliente, Cassa_t *casse, int K)
 			cassa_scelta = casse + i;
 	}
 
+	return cassa_scelta;
+}
+
+void mettiInFila(Cliente_t *cliente, Cassa_t *cassa) {
+	// Si mette in fila mandando un segnale al cassiere
+	Pthread_mutex_lock(&cassa->mtx);
+	push(cassa->q, cliente);
+	Pthread_cond_signal(&cassa->cond);
+	Pthread_mutex_unlock(&cassa->mtx);
+}
+
+Cassa_t* scegliCassa(Cliente_t *cliente, Cassa_t *casse, int K)
+{
+	Cassa_t *cassa_scelta = getMinCoda(casse, K);
+
 	if (cassa_scelta == NULL)
 	{
 		fprintf(stderr, "nessuna cassa attiva\n");
 		exit(EXIT_FAILURE);
 	}
 
-	// Si mette in fila mandando un segnale al cassiere
-	Pthread_mutex_lock(&cassa_scelta->mtx);
-	push(cassa_scelta->q, cliente);
-	Pthread_cond_signal(&cassa_scelta->cond);
-	Pthread_mutex_unlock(&cassa_scelta->mtx);
-
+	mettiInFila(cliente, cassa_scelta);
 	// printf("%d messo in coda alla cassa %d\n", cliente->id, cassa_scelta->thid);
+
+	return cassa_scelta;
 }
 
 void aspettaInCoda(Cliente_t *cliente, Cassa_t *casse, int K)
 {
+	long intervallo = 50;
+	struct timespec ts = {0, intervallo};
+	Cassa_t *cassa_scelta = NULL;
+	cassa_scelta = scegliCassa(cliente, casse, K);
+
 	// Aspetta fino a che non è servito
 	Pthread_mutex_lock(&cliente->mtx);
 	while (cliente->servito == 0)
 	{
-		scegliCassa(cliente, casse, K);
-		Pthread_cond_wait(&cliente->cond, &cliente->mtx);
+		clock_gettime(CLOCK_REALTIME, &ts);
+    	ts.tv_sec += 5;
+
+		Pthread_cond_timedwait(&cliente->cond, &cliente->mtx, &ts);
+
+		// Se il cliente non è stato ancora servito, valuta se cambiare cassa
+		if(!cliente->servito) {
+			int posizione = calcolaPosizioneInCoda(cassa_scelta->q, cliente->id);
+			Cassa_t *minCassa = getMinCoda(casse, K);
+			if(length(minCassa->q) < posizione) {
+				mettiInFila(cliente, minCassa);
+				cassa_scelta = minCassa;
+				printf("Cambio coda cliente %d a cassa %d\n", cliente->id, cassa_scelta->thid);
+			}
+		}
 	}
 	Pthread_mutex_unlock(&cliente->mtx);
 }

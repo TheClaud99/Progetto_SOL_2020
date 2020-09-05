@@ -60,6 +60,16 @@ void Pthread_cond_wait(pthread_cond_t *cond, pthread_mutex_t *mtx)
     }
 }
 
+void Pthread_cond_timedwait(pthread_cond_t *cond, pthread_mutex_t *mutex, const struct timespec *abstime) {
+    int err;
+    if ((err = pthread_cond_timedwait(cond, mutex, abstime)) != 0 && err != ETIMEDOUT)
+    {
+        errno = err;
+        perror("cond wait");
+        pthread_exit((void*)&errno);
+    }
+}
+
 void Pthread_cond_signal(pthread_cond_t *cond)
 {
     int err;

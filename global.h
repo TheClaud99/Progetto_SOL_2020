@@ -68,7 +68,7 @@ char isActive(Cassa_t *cassa)
 
 void printCasse(Cassa_t *casse, int K) {
     for(int i = 0; i < K; i++) {
-        printf(" id: %d \n active: %d \n lenght: %ld \n ", casse[i].thid, casse[i].active, length(casse[i].q));
+        printf(" id: %d \n active: %d \n length: %ld \n ", casse[i].thid, casse[i].active, length(casse[i].q));
     }
 }
 
