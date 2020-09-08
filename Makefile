@@ -28,7 +28,6 @@ libQueue.a: queue.o queue.h
 	$(AR) $(ARFLAGS) $@ $<
 
 test1: 
-	echo "eseguo test"
 	./tests/test1/test1.sh
 
 clean: 

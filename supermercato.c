@@ -328,6 +328,10 @@ int sendCassa(Cassa_t cassa) {
 
 	SYSCALL(notused, readn(sockfd, &operation, sizeof(int)), "read");
 
+	message.len = -1;
+
+	SYSCALL(notused, writen(sockfd, &message, sizeof(msg_t)), "writen");
+
 	printf("connection result: %d\n", operation);
 
 	close(sockfd);
@@ -339,10 +343,31 @@ void *InviaCoda(void *args) {
 	long intervallo = ((thInvia_args_t *)args)->intervallo;
 	Cassa_t *cassa = ((thInvia_args_t *)args)->cassa;
 	struct timespec t = {0, intervallo};
+
+
+	struct sockaddr_un serv_addr;
+	int sockfd;
+	
+	SYSCALL(sockfd, socket(AF_UNIX, SOCK_STREAM, 0), "socket");
+	memset(&serv_addr, '0', sizeof(serv_addr));
+
+	serv_addr.sun_family = AF_UNIX;
+	strncpy(serv_addr.sun_path, SOCKNAME, strlen(SOCKNAME) + 1);
+	msg_t message = {length(cassa->q), cassa->thid};
+	int notused;
+	
+	SYSCALL(notused, connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)), "connect");
+
 	while (1)
 	{
 		if(cassa->active == 1) {
-			int operation = sendCassa(*cassa);
+			int operation;
+			
+			SYSCALL(notused, writen(sockfd, &message, sizeof(msg_t)), "writen client");
+
+			SYSCALL(notused, readn(sockfd, &operation, sizeof(int)), "read");
+
+			printf("Connection result: %d\n", operation);
 		}
 
 		nanosleep(&t, NULL);

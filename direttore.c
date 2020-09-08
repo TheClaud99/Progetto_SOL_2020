@@ -4,136 +4,18 @@
 #include "queue.h"
 #include "global.h"
 
-void apriCassa(Cassa_t *casse, int K)
+typedef struct threadFArgs
 {
-	Cassa_t *cassa_scelta = NULL;
-	int i = 0;
-
-	// Prende la prima cassa chiusa della lista
-	while (cassa_scelta == NULL && i < K)
-	{
-		// Se la cassa e' disattiva
-		if (isActive(&casse[i]) == 0)
-			cassa_scelta = casse + i;
-		i++;
-	}
-
-	if (cassa_scelta == NULL)
-	{
-		fprintf(stderr, "nessuna cassa disattiva\n");
-	}
-
-	Pthread_mutex_lock(&cassa_scelta->mtx);
-	cassa_scelta->active = 1;
-	Pthread_cond_signal(&cassa_scelta->cond);
-	Pthread_mutex_unlock(&cassa_scelta->mtx);
-	printf("Apro cassa %d\n", cassa_scelta->thid);
-}
-
-void chiudiCassa(Cassa_t *casse, int K)
-{
-	Cassa_t *cassa_scelta = NULL;
-	for (int i = 0; i < K; ++i)
-	{
-		// Se la cassa e' attiva e se la cassa scelta e' NULL oppure con coda più lunga viene scelta
-		if ((cassa_scelta == NULL || length(cassa_scelta->q) > length(casse[i].q)) && isActive(&casse[i]))
-			cassa_scelta = casse + i;
-	}
-
-	if (cassa_scelta == NULL)
-	{
-		fprintf(stderr, "nessuna cassa attiva\n");
-	}
-
-	Pthread_mutex_lock(&cassa_scelta->mtx);
-	cassa_scelta->active = 0;
-	Pthread_cond_signal(&cassa_scelta->cond);
-	Pthread_mutex_unlock(&cassa_scelta->mtx);
-
-	printf("Chiudo cassa %d\n", cassa_scelta->thid);
-}
-
-void Direttore(void *arg)
-{
-	Cassa_t *casse = ((threadDirettoreArgs_t *)arg)->casse;
-	int K = ((threadDirettoreArgs_t *)arg)->K;
-	int S1 = ((threadDirettoreArgs_t *)arg)->S1;
-	int S2 = ((threadDirettoreArgs_t *)arg)->S2;
-
-	int count_max1cliente;
-	int count_minS2clienti;
-	int count_aperte;
-
-	printf("Thread direttore started\n");
-
-	while (1)
-	{
-		count_max1cliente = 0;
-		count_minS2clienti = 0;
-		count_aperte = 0;
-		for (int i = 0; i < K; i++)
-		{
-			int coda = length(casse[i].q);
-			if (coda <= 1)
-				count_max1cliente++;
-			if (coda >= S2)
-				count_minS2clienti++;
-			if (isActive(&casse[i]) == 1)
-				count_aperte++;
-		}
-
-		// printf("Aperte:%d\n", count_aperte);
-
-		// Se il numero di casse con un cliente solo in fila supera S1
-		// chiudo una cassa
-		if (count_max1cliente >= S1)
-			if (count_aperte > 1)
-				chiudiCassa(casse, K);
-
-		// Se esiste una cassa con almeno S2 clienti in fila
-		// apro un'altra cassa
-		if (count_minS2clienti > 0)
-			if (count_aperte < K)
-				apriCassa(casse, K);
-	}
-}
+	int *casse;
+	int K;
+	int S1;
+	int S2;
+	long connfd;
+} threadFArgs_t;
 
 void cleanup()
 {
 	unlink(SOCKNAME);
-}
-
-int cmd(const char str[], char *buf)
-{
-	int tobc[2];
-	int frombc[2];
-
-	int notused;
-	SYSCALL(notused, pipe(tobc), "pipe1");
-	SYSCALL(notused, pipe(frombc), "pipe2");
-
-	if (fork() == 0)
-	{
-		// chiudo i descrittori che non uso
-		SYSCALL(notused, close(tobc[1]), "close");
-		SYSCALL(notused, close(frombc[0]), "close");
-
-		SYSCALL(notused, dup2(tobc[0], 0), "dup2 child (1)");	// stdin
-		SYSCALL(notused, dup2(frombc[1], 1), "dup2 child (2)"); // stdout
-		SYSCALL(notused, dup2(frombc[1], 2), "dup2 child (3)"); // stderr
-
-		execl("/usr/bin/bc", "bc", "-l", NULL);
-		return -1;
-	}
-	// chiudo i descrittori che non uso
-	SYSCALL(notused, close(tobc[0]), "close");
-	SYSCALL(notused, close(frombc[1]), "close");
-	int n;
-	SYSCALL(n, write(tobc[1], (char *)str, strlen(str)), "writen");
-	SYSCALL(n, read(frombc[0], buf, BUFSIZE), "readn"); // leggo il risultato o l'errore
-	SYSCALL(notused, close(tobc[1]), "close");			// si chiude lo standard input di bc cosi' da farlo terminare
-	SYSCALL(notused, wait(NULL), "wait");
-	return n;
 }
 
 int calcolaScelta(int *casse, int K, int S1, int S2)
@@ -163,6 +45,66 @@ int calcolaScelta(int *casse, int K, int S1, int S2)
 
 	return 0;
 }
+
+void *threadF(void *arg)
+{
+    assert(arg);
+	int *casse = ((threadFArgs_t*)arg)->casse;
+	int K = ((threadFArgs_t*)arg)->K;
+	int S1 = ((threadFArgs_t*)arg)->S1;
+	int S2 = ((threadFArgs_t*)arg)->S2;
+    long connfd = ((threadFArgs_t*)arg)->connfd;
+
+    do
+    {
+		int notused;
+		msg_t message;
+		SYSCALL(notused, readn(connfd, &message, sizeof(msg_t)), "readn");
+
+		if(message.len == -1) break;
+
+		casse[message.cassa_id - 1] = message.len;
+
+		int scelta = calcolaScelta(casse, K, S1, S2);
+
+		// printf("%d, %d\n", message.len, message.cassa_id);
+
+		SYSCALL(notused, writen(connfd, &scelta, sizeof(int)), "writen");
+
+    } while (1);
+    close(connfd);
+    return NULL;
+}
+
+void spawn_thread(long connfd, int *casse, int K, int S1, int S2)
+{
+    pthread_attr_t thattr;
+    pthread_t thid;
+	threadFArgs_t threadFARGS = {casse, K, S1, S2, connfd};
+
+    if (pthread_attr_init(&thattr) != 0)
+    {
+        fprintf(stderr, "pthread_attr_init FALLITA\n");
+        close(connfd);
+        return;
+    }
+    // settiamo il thread in modalità detached
+    if (pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_DETACHED) != 0)
+    {
+        fprintf(stderr, "pthread_attr_setdetachstate FALLITA\n");
+        pthread_attr_destroy(&thattr);
+        close(connfd);
+        return;
+    }
+    if (pthread_create(&thid, &thattr, threadF, &threadFARGS) != 0)
+    {
+        fprintf(stderr, "pthread_create FALLITA");
+        pthread_attr_destroy(&thattr);
+        close(connfd);
+        return;
+    }
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -207,26 +149,14 @@ int main(int argc, char *argv[])
 	SYSCALL(notused, bind(listenfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)), "bind");
 
 	// setto il socket in modalita' passiva e definisco un n. massimo di connessioni pendenti
-	SYSCALL(notused, listen(listenfd, 1), "listen");
-
-	int connfd;
+	SYSCALL(notused, listen(listenfd, MAXBACKLOG), "listen");
 
 	do
 	{
+		long connfd;
 		SYSCALL(connfd, accept(listenfd, (struct sockaddr *)NULL, NULL), "accept");
 
-		msg_t message;
-		SYSCALL(notused, readn(connfd, &message, sizeof(msg_t)), "readn");
-
-		casse[message.cassa_id - 1] = message.len;
-
-		int scelta = calcolaScelta(casse, K, S1, S2);
-
-		// printf("%d, %d\n", message.len, message.cassa_id);
-
-		SYSCALL(notused, writen(connfd, &scelta, sizeof(int)), "writen");
-
-		close(connfd);
+		spawn_thread(connfd, casse, K, S1, S2);
 	} while (1);
 
 	return 0;
