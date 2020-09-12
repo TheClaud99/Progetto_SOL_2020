@@ -88,26 +88,24 @@ void FaiAcquisti(Cliente_t *cliente, int T, int P)
 	unsigned int seed = cliente->id;
 	long r = 10 + rand_r(&seed) % (T - 10);
 	// printf("Facendo acquisti per %ld ms \n", r);
-	struct timespec t = {0, r};
 
 	Pthread_mutex_lock(&cliente->mtx);
-	nanosleep(&t, NULL);
+	msleep(r);
 	cliente->nprod = rand_r(&seed) % P;
 	Pthread_mutex_unlock(&cliente->mtx);
 }
 
 void ServiCliente(Cassa_t *cassa, long t_cassiere)
 {
-	printf("Lunghezza coda alla cassa %d: %ld\n", cassa->thid, length(cassa->q));
+	// printf("Lunghezza coda alla cassa %d: %ld\n", cassa->thid, length(cassa->q));
 	// Prende il primo cliente in coda
 	Cliente_t *cliente = pop(cassa->q);
 
 	if (cliente != NULL)
 	{
 		// Acquisice la mutua esclusione sul cliente e lo serve
-		struct timespec t = {0, t_cassiere + cassa->TP * cliente->nprod};
 		Pthread_mutex_lock(&cliente->mtx);
-		nanosleep(&t, NULL);
+		msleep(t_cassiere + cassa->TP * cliente->nprod);
 		cliente->servito = 1;
 		Pthread_cond_signal(&cliente->cond);
 		Pthread_mutex_unlock(&cliente->mtx);
@@ -250,7 +248,7 @@ void apriCassa(Cassa_t *casse, int K)
 	}
 }
 
-void chiudiCassa(Cassa_t *casse, int K)
+int chiudiCassa(Cassa_t *casse, int K)
 {
 	int conut_aperte = 0;
 
@@ -278,8 +276,12 @@ void chiudiCassa(Cassa_t *casse, int K)
 			Pthread_mutex_unlock(&cassa_scelta->mtx);
 
 			printf("Chiudo cassa %d\n", cassa_scelta->thid);
+
+			conut_aperte--;
 		}
 	}
+
+	return conut_aperte;
 }
 
 // thread direttore
@@ -290,6 +292,7 @@ void *ComunicazioneDirettore(void *args)
 
 	struct sockaddr_un serv_addr = init_servaddr();
 	int sockfd;
+	int count_aperte = K;
 
 	SYSCALL(sockfd, socket(AF_UNIX, SOCK_STREAM, 0), "socket");
 
@@ -306,18 +309,19 @@ void *ComunicazioneDirettore(void *args)
 
 		SYSCALL(notused, readn(sockfd, &operation, sizeof(int)), "readn client");
 
-		fprintf(stderr, "Connection result: %d\n", operation);
+		// fprintf(stderr, "Connection result: %d\n", operation);
 
-		if (operation == APRICASSA)
+		if (operation == APRICASSA && count_aperte < K)
 		{
+			count_aperte++;
 			printf("Apro\n");
 			apriCassa(casse, K);
 		}
 
-		if (operation == CHIUDICASSA)
+		if (operation == CHIUDICASSA && count_aperte > 1)
 		{
-			printf("Chiudo\n");
-			chiudiCassa(casse, K);
+			count_aperte = chiudiCassa(casse, K);
+			printf("Chiuso\n");
 		}
 	}
 
@@ -331,7 +335,6 @@ void *InviaCoda(void *args)
 {
 	long intervallo = ((thInvia_args_t *)args)->intervallo;
 	Cassa_t *cassa = ((thInvia_args_t *)args)->cassa;
-	struct timespec t = {0, intervallo};
 
 	struct sockaddr_un serv_addr = init_servaddr();
 	int sockfd;
@@ -355,7 +358,7 @@ void *InviaCoda(void *args)
 			SYSCALL(notused, readn(sockfd, &operation, sizeof(int)), "read");
 		}
 
-		nanosleep(&t, NULL);
+		msleep(intervallo);
 	}
 
 	close(sockfd);
@@ -366,7 +369,7 @@ void *Cassiere(void *arg)
 {
 	Cassa_t *cassa = (Cassa_t *)arg;
 	pthread_t th_invia_coda;
-	int intervallo = 500;
+	int intervallo = 1;
 	thInvia_args_t inviaCodaARGS = {cassa, intervallo};
 	unsigned int seed = cassa->thid;
 	long t_cassiere = 20 + rand_r(&seed) % 60;
@@ -420,8 +423,6 @@ void initCassieri(pthread_t **th, Cassa_t **thARGS, int K, int TP)
 	*th = malloc(K * sizeof(pthread_t));
 	*thARGS = malloc(K * sizeof(Cassa_t));
 
-	struct timespec t = {0, 100000};
-
 	if (!(*th) || !(*thARGS))
 	{
 		fprintf(stderr, "malloc fallita cassieri fallita\n");
@@ -443,7 +444,7 @@ void initCassieri(pthread_t **th, Cassa_t **thARGS, int K, int TP)
 			fprintf(stderr, "pthread_create failed\n");
 			exit(EXIT_FAILURE);
 		}
-		nanosleep(&t, NULL);
+		msleep(1);
 	}
 }
 

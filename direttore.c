@@ -28,12 +28,11 @@ int calcolaScelta(int *casse, int K, int S1, int S2)
 	Pthread_mutex_lock(&casse_mtx);
 	for (int i = 0; i < K; i++)
 	{
-		if(casse[i] != CASSACHIUSA) {
-			if (casse[i] <= 1)
+		// printf("Lunghezza coda alla cassa %d: %d \n", i, casse[i]);
+		if (casse[i] <= 1)
 			count_max1cliente++;
-			if (casse[i] >= S2)
-				count_minS2clienti++;
-		}
+		if (casse[i] >= S2)
+			count_minS2clienti++;
 	}
 	Pthread_mutex_unlock(&casse_mtx);
 
