@@ -7,6 +7,8 @@
 
 #define APRICASSA   1
 #define CHIUDICASSA 2
+#define DIRETTOREID 0
+#define CASSACHIUSA -1
 
 typedef struct Cassa
 {

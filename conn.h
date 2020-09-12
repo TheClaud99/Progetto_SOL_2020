@@ -55,5 +55,15 @@ static inline int writen(long fd, void *buf, size_t size) {
     return 1;
 }
 
+static inline struct sockaddr_un init_servaddr() {
+    struct sockaddr_un serv_addr;
+
+	memset(&serv_addr, '0', sizeof(serv_addr));
+
+	serv_addr.sun_family = AF_UNIX;
+	strncpy(serv_addr.sun_path, SOCKNAME, strlen(SOCKNAME) + 1);
+
+    return serv_addr;
+}
 
 #endif /* CONN_H */

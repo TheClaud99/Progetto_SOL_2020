@@ -16,21 +16,24 @@ typedef struct thInvia_args
 	long intervallo;
 } thInvia_args_t;
 
-int calcolaPosizioneInCoda(Queue_t *q, int id) {
+int calcolaPosizioneInCoda(Queue_t *q, int id)
+{
 	int pos = 1;
 	Node_t *p = (Node_t *)q->tail;
 	int found = 0;
 	while (found != 1 && p != NULL)
-    {
-        if (((Cliente_t*)p->data)->id == id) found = 1;
+	{
+		if (((Cliente_t *)p->data)->id == id)
+			found = 1;
 		else
 		{
 			pos++;
 			p = p->next;
 		}
-    }
+	}
 
-	if (found == 1) return pos;
+	if (found == 1)
+		return pos;
 
 	return -1;
 }
@@ -41,14 +44,15 @@ void removeClientFromQueue(Queue_t *q, int id)
 	Node_t *prec = NULL;
 	int found = 0;
 	while (found != 1 && p != NULL)
-    {
-        if (((Cliente_t*)p->data)->id == id) found = 1;
+	{
+		if (((Cliente_t *)p->data)->id == id)
+			found = 1;
 		else
 		{
 			prec = p;
 			p = p->next;
 		}
-    }
+	}
 
 	if (found == 1)
 	{
@@ -112,7 +116,8 @@ void ServiCliente(Cassa_t *cassa, long t_cassiere)
 	}
 }
 
-Cassa_t* getMinCoda(Cassa_t *casse, int K) {
+Cassa_t *getMinCoda(Cassa_t *casse, int K)
+{
 	// Il cliente controlla la cassa con fila più corta
 	Cassa_t *cassa_scelta = NULL;
 
@@ -126,7 +131,8 @@ Cassa_t* getMinCoda(Cassa_t *casse, int K) {
 	return cassa_scelta;
 }
 
-void mettiInFila(Cliente_t *cliente, Cassa_t *cassa) {
+void mettiInFila(Cliente_t *cliente, Cassa_t *cassa)
+{
 	// Si mette in fila mandando un segnale al cassiere
 	Pthread_mutex_lock(&cassa->mtx);
 	push(cassa->q, cliente);
@@ -134,7 +140,7 @@ void mettiInFila(Cliente_t *cliente, Cassa_t *cassa) {
 	Pthread_mutex_unlock(&cassa->mtx);
 }
 
-Cassa_t* scegliCassa(Cliente_t *cliente, Cassa_t *casse, int K)
+Cassa_t *scegliCassa(Cliente_t *cliente, Cassa_t *casse, int K)
 {
 	Cassa_t *cassa_scelta = getMinCoda(casse, K);
 
@@ -162,15 +168,17 @@ void aspettaInCoda(Cliente_t *cliente, Cassa_t *casse, int K)
 	while (cliente->servito == 0)
 	{
 		clock_gettime(CLOCK_REALTIME, &ts);
-    	ts.tv_sec += 5;
+		ts.tv_sec += 5;
 
 		Pthread_cond_timedwait(&cliente->cond, &cliente->mtx, &ts);
 
 		// Se il cliente non è stato ancora servito, valuta se cambiare cassa
-		if(!cliente->servito) {
+		if (!cliente->servito)
+		{
 			int posizione = calcolaPosizioneInCoda(cassa_scelta->q, cliente->id);
 			Cassa_t *minCassa = getMinCoda(casse, K);
-			if(length(minCassa->q) < posizione) {
+			if (length(minCassa->q) < posizione)
+			{
 				mettiInFila(cliente, minCassa);
 				cassa_scelta = minCassa;
 				printf("Cambio coda cliente %d a cassa %d\n", cliente->id, cassa_scelta->thid);
@@ -213,11 +221,14 @@ void *Cliente(void *arg)
 
 void apriCassa(Cassa_t *casse, int K)
 {
+
+	if(casse == NULL) return;
+
 	Cassa_t *cassa_scelta = NULL;
 	int i = 0;
 
 	// Prende la prima cassa chiusa della lista
-	while(cassa_scelta == NULL && i < K)
+	while (cassa_scelta == NULL && i < K)
 	{
 		// Se la cassa e' disattiva
 		if (isActive(&casse[i]) == 0)
@@ -228,150 +239,126 @@ void apriCassa(Cassa_t *casse, int K)
 	if (cassa_scelta == NULL)
 	{
 		fprintf(stderr, "nessuna cassa disattiva\n");
-		exit(EXIT_FAILURE);
 	}
-
-	Pthread_mutex_lock(&cassa_scelta->mtx);
-	cassa_scelta->active = 1;
-	Pthread_cond_signal(&cassa_scelta->cond);
-	Pthread_mutex_unlock(&cassa_scelta->mtx);
-	printf("Apro cassa %d\n", cassa_scelta->thid);
+	else
+	{
+		Pthread_mutex_lock(&cassa_scelta->mtx);
+		cassa_scelta->active = 1;
+		Pthread_cond_signal(&cassa_scelta->cond);
+		Pthread_mutex_unlock(&cassa_scelta->mtx);
+		printf("Apro cassa %d\n", cassa_scelta->thid);
+	}
 }
 
 void chiudiCassa(Cassa_t *casse, int K)
 {
+	int conut_aperte = 0;
+
 	Cassa_t *cassa_scelta = NULL;
 	for (int i = 0; i < K; ++i)
 	{
 		// Se la cassa e' attiva e se la cassa scelta e' NULL oppure con coda più lunga viene scelta
-		if ((cassa_scelta == NULL || length(cassa_scelta->q) > length(casse[i].q)) && isActive(&casse[i]))
-			cassa_scelta = casse + i;
+		if(isActive(&casse[i])) {
+			conut_aperte++;
+			if (cassa_scelta == NULL || length(cassa_scelta->q) > length(casse[i].q))
+				cassa_scelta = casse + i;
+		}
 	}
 
 	if (cassa_scelta == NULL)
 	{
 		fprintf(stderr, "nessuna cassa attiva\n");
-		exit(EXIT_FAILURE);
 	}
+	else
+	{
+		if(conut_aperte > 1) {
+			Pthread_mutex_lock(&cassa_scelta->mtx);
+			cassa_scelta->active = 0;
+			Pthread_cond_signal(&cassa_scelta->cond);
+			Pthread_mutex_unlock(&cassa_scelta->mtx);
 
-	Pthread_mutex_lock(&cassa_scelta->mtx);
-	cassa_scelta->active = 0;
-	Pthread_cond_signal(&cassa_scelta->cond);
-	Pthread_mutex_unlock(&cassa_scelta->mtx);
-
-	printf("Chiudo cassa %d\n", cassa_scelta->thid);
+			printf("Chiudo cassa %d\n", cassa_scelta->thid);
+		}
+	}
 }
 
-// thread cliente
-void *Direttore(void *arg)
+// thread direttore
+void *ComunicazioneDirettore(void *args)
 {
-	Cassa_t *casse = ((threadDirettoreArgs_t *)arg)->casse;
-	int K = ((threadDirettoreArgs_t *)arg)->K;
-	int S1 = ((threadDirettoreArgs_t *)arg)->S1;
-	int S2 = ((threadDirettoreArgs_t *)arg)->S2;
+	Cassa_t *casse = ((threadDirettoreArgs_t *)args)->casse;
+	int K = ((threadDirettoreArgs_t *)args)->K;
 
-	int count_max1cliente;
-	int count_minS2clienti;
-	int count_aperte;
+	struct sockaddr_un serv_addr = init_servaddr();
+	int sockfd;
 
-	printf("Thread direttore started\n");
+	SYSCALL(sockfd, socket(AF_UNIX, SOCK_STREAM, 0), "socket");
+
+	msg_t message = {0, DIRETTOREID};
+	int notused;
+
+	SYSCALL(notused, connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)), "connect to director");
 
 	while (1)
 	{
-		count_max1cliente = 0;
-		count_minS2clienti = 0;
-		count_aperte = 0;
-		for(int i = 0; i < K; i++)
+		int operation;
+
+		SYSCALL(notused, writen(sockfd, &message, sizeof(msg_t)), "writen client");
+
+		SYSCALL(notused, readn(sockfd, &operation, sizeof(int)), "readn client");
+
+		fprintf(stderr, "Connection result: %d\n", operation);
+
+		if (operation == APRICASSA)
 		{
-			int coda = length(casse[i].q);
-			if (coda <= 1) count_max1cliente++;
-			if (coda >= S2) count_minS2clienti++;
-			if(isActive(&casse[i]) == 1)
-				count_aperte++;
+			printf("Apro\n");
+			apriCassa(casse, K);
 		}
 
-		// printf("Aperte:%d\n", count_aperte);
-
-		// Se il numero di casse con un cliente solo in fila supera S1
-		// chiudo una cassa
-		if(count_max1cliente >= S1)
-			if(count_aperte > 1)
-				chiudiCassa(casse, K);
-
-		// Se esiste una cassa con almeno S2 clienti in fila
-		// apro un'altra cassa
-		if(count_minS2clienti > 0)
-			if(count_aperte < K)
-				apriCassa(casse, K);
+		if (operation == CHIUDICASSA)
+		{
+			printf("Chiudo\n");
+			chiudiCassa(casse, K);
+		}
 	}
+
+	close(sockfd);
 
 	fflush(stdout);
 	pthread_exit(NULL);
 }
 
-int sendCassa(Cassa_t cassa) {
-	struct sockaddr_un serv_addr;
-	int sockfd;
-	
-	SYSCALL(sockfd, socket(AF_UNIX, SOCK_STREAM, 0), "socket");
-	memset(&serv_addr, '0', sizeof(serv_addr));
-
-	serv_addr.sun_family = AF_UNIX;
-	strncpy(serv_addr.sun_path, SOCKNAME, strlen(SOCKNAME) + 1);
-	msg_t message = {length(cassa.q), cassa.thid};
-	int notused;
-	
-	int operation;
-	SYSCALL(notused, connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)), "connect");
-
-	SYSCALL(notused, writen(sockfd, &message, sizeof(msg_t)), "writen");
-
-	SYSCALL(notused, readn(sockfd, &operation, sizeof(int)), "read");
-
-	message.len = -1;
-
-	SYSCALL(notused, writen(sockfd, &message, sizeof(msg_t)), "writen");
-
-	printf("connection result: %d\n", operation);
-
-	close(sockfd);
-
-	return operation;
-}
-
-void *InviaCoda(void *args) {
+void *InviaCoda(void *args)
+{
 	long intervallo = ((thInvia_args_t *)args)->intervallo;
 	Cassa_t *cassa = ((thInvia_args_t *)args)->cassa;
 	struct timespec t = {0, intervallo};
 
-
-	struct sockaddr_un serv_addr;
+	struct sockaddr_un serv_addr = init_servaddr();
 	int sockfd;
-	
-	SYSCALL(sockfd, socket(AF_UNIX, SOCK_STREAM, 0), "socket");
-	memset(&serv_addr, '0', sizeof(serv_addr));
 
-	serv_addr.sun_family = AF_UNIX;
-	strncpy(serv_addr.sun_path, SOCKNAME, strlen(SOCKNAME) + 1);
+	SYSCALL(sockfd, socket(AF_UNIX, SOCK_STREAM, 0), "socket");
+
 	msg_t message = {length(cassa->q), cassa->thid};
 	int notused;
-	
+
 	SYSCALL(notused, connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)), "connect");
 
 	while (1)
 	{
 		if(cassa->active == 1) {
+			message.len = length(cassa->q);
+
 			int operation;
-			
+
 			SYSCALL(notused, writen(sockfd, &message, sizeof(msg_t)), "writen client");
 
 			SYSCALL(notused, readn(sockfd, &operation, sizeof(int)), "read");
-
-			printf("Connection result: %d\n", operation);
 		}
 
 		nanosleep(&t, NULL);
 	}
+
+	close(sockfd);
 }
 
 // thread cassiere
@@ -408,7 +395,7 @@ void *Cassiere(void *arg)
 		// Se la cassa è attiva serve il prossimo cliente
 		if (cassa->active == 1)
 		{
-			if(length(cassa->q) > 0)
+			if (length(cassa->q) > 0)
 				ServiCliente(cassa, t_cassiere);
 			else
 				// Aspetta che un cliente si metta in coda o di venire disattivata
@@ -433,6 +420,8 @@ void initCassieri(pthread_t **th, Cassa_t **thARGS, int K, int TP)
 	*th = malloc(K * sizeof(pthread_t));
 	*thARGS = malloc(K * sizeof(Cassa_t));
 
+	struct timespec t = {0, 100000};
+
 	if (!(*th) || !(*thARGS))
 	{
 		fprintf(stderr, "malloc fallita cassieri fallita\n");
@@ -447,12 +436,15 @@ void initCassieri(pthread_t **th, Cassa_t **thARGS, int K, int TP)
 		(*thARGS)[i].q = initQueue();
 	}
 
-	for (int i = 0; i < K; ++i)
+	for (int i = 0; i < K; ++i) 
+	{
 		if (pthread_create((*th + i), NULL, Cassiere, (*thARGS + i)) != 0)
 		{
 			fprintf(stderr, "pthread_create failed\n");
 			exit(EXIT_FAILURE);
 		}
+		nanosleep(&t, NULL);
+	}
 }
 
 void initClienti(pthread_t **th, int K, int C, int T, int P, int S, Cassa_t *casse)
@@ -487,19 +479,21 @@ void initClienti(pthread_t **th, int K, int C, int T, int P, int S, Cassa_t *cas
 }
 
 /* un gestore piuttosto semplice */
-static void gestore (int signum) {
-	printf("Ricevuto segnale %d\n",signum);
+static void gestore(int signum)
+{
+	printf("Ricevuto segnale %d\n", signum);
 	exit(EXIT_FAILURE);
 }
 
 int main(int argc, char **argv)
 {
+
 	struct sigaction s;
 	/* inizializzo s a 0*/
-	memset( &s, 0, sizeof(s) );
-	s.sa_handler=gestore; /* registro gestore */
+	memset(&s, 0, sizeof(s));
+	s.sa_handler = gestore; /* registro gestore */
 	/* installo nuovo gestore s */
-	ec_meno1( sigaction(SIGINT,&s,NULL), "Signal handler error" );
+	ec_meno1(sigaction(SIGINT, &s, NULL), "Signal handler error");
 
 	// Numero di casse
 	int K = 2;
@@ -531,7 +525,7 @@ int main(int argc, char **argv)
 	pthread_t *th_clienti = NULL;
 	pthread_t *th_new_clienti = NULL;
 	pthread_t *th_cassieri = NULL;
-	pthread_t th_direttore;
+	pthread_t th_comunicazione_direttore;
 	Cassa_t *casse = NULL;
 
 	if (argc == 10)
@@ -550,7 +544,7 @@ int main(int argc, char **argv)
 	initCassieri(&th_cassieri, &casse, K, TP);
 
 	threadDirettoreArgs_t thDirettoreARGS = {K, S1, S2, casse};
-	if (pthread_create(&th_direttore, NULL, Direttore, &thDirettoreARGS) != 0)
+	if (pthread_create(&th_comunicazione_direttore, NULL, ComunicazioneDirettore, &thDirettoreARGS) != 0)
 	{
 		fprintf(stderr, "pthread_create failed\n");
 		exit(EXIT_FAILURE);

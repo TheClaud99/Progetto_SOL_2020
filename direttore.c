@@ -13,6 +13,8 @@ typedef struct threadFArgs
 	long connfd;
 } threadFArgs_t;
 
+pthread_mutex_t casse_mtx = PTHREAD_MUTEX_INITIALIZER;
+
 void cleanup()
 {
 	unlink(SOCKNAME);
@@ -23,13 +25,17 @@ int calcolaScelta(int *casse, int K, int S1, int S2)
 	int count_max1cliente = 0;
 	int count_minS2clienti = 0;
 
+	Pthread_mutex_lock(&casse_mtx);
 	for (int i = 0; i < K; i++)
 	{
-		if (casse[i] <= 1)
+		if(casse[i] != CASSACHIUSA) {
+			if (casse[i] <= 1)
 			count_max1cliente++;
-		if (casse[i] >= S2)
-			count_minS2clienti++;
+			if (casse[i] >= S2)
+				count_minS2clienti++;
+		}
 	}
+	Pthread_mutex_unlock(&casse_mtx);
 
 	// printf("Aperte:%d\n", count_aperte);
 
@@ -54,6 +60,7 @@ void *threadF(void *arg)
 	int S1 = ((threadFArgs_t*)arg)->S1;
 	int S2 = ((threadFArgs_t*)arg)->S2;
     long connfd = ((threadFArgs_t*)arg)->connfd;
+	int success_message = 1;
 
     do
     {
@@ -63,13 +70,23 @@ void *threadF(void *arg)
 
 		if(message.len == -1) break;
 
-		casse[message.cassa_id - 1] = message.len;
+		// Controlla se ad inviare il messaggio è il thread nel processo supermercato incaricato di aprire e chiudere le casse
+		if(message.cassa_id == DIRETTOREID) {
+			// Calcola se devono essre aperte o chiuse delle casse
+			int scelta = calcolaScelta(casse, K, S1, S2);
+			SYSCALL(notused, writen(connfd, &scelta, sizeof(int)), "writen server");
 
-		int scelta = calcolaScelta(casse, K, S1, S2);
+		} else {
+			
+			// Se è una cassa che sta comunicando la lunghezza della sua coda, aggiorna l'array e invia un messaggio di successo
+			Pthread_mutex_lock(&casse_mtx);
+			casse[message.cassa_id - 1] = message.len;
+			Pthread_mutex_unlock(&casse_mtx);
 
-		// printf("%d, %d\n", message.len, message.cassa_id);
+			// printf("%d, %d\n", message.len, message.cassa_id);
 
-		SYSCALL(notused, writen(connfd, &scelta, sizeof(int)), "writen");
+			SYSCALL(notused, writen(connfd, &success_message, sizeof(int)), "writen server");
+		}
 
     } while (1);
     close(connfd);
@@ -139,10 +156,7 @@ int main(int argc, char *argv[])
 	SYSCALL(listenfd, socket(AF_UNIX, SOCK_STREAM, 0), "socket");
 
 	// setto l'indirizzo
-	struct sockaddr_un serv_addr;
-	memset(&serv_addr, '0', sizeof(serv_addr));
-	serv_addr.sun_family = AF_UNIX;
-	strncpy(serv_addr.sun_path, SOCKNAME, strlen(SOCKNAME) + 1);
+	struct sockaddr_un serv_addr = init_servaddr();
 
 	int notused;
 	// assegno l'indirizzo al socket
