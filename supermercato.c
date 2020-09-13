@@ -196,7 +196,7 @@ int aspettaInCoda(Cliente_t *cliente, Cassa_t *casse, int K)
 		if (!cliente->servito)
 		{
 			int posizione = calcolaPosizioneInCoda(cassa_scelta->q, cliente->id);
-			Cassa_t *minCassa = getMinCodaNoMtx(casse, K);
+			Cassa_t *minCassa = getMinCoda(casse, K);
 			if (minCassa->q->qlen < posizione)
 			{
 				cambi_cassa++;
