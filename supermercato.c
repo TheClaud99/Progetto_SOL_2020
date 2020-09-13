@@ -133,6 +133,21 @@ Cassa_t *getMinCoda(Cassa_t *casse, int K)
 	return cassa_scelta;
 }
 
+Cassa_t *getMinCodaNoMtx(Cassa_t *casse, int K)
+{
+	// Il cliente controlla la cassa con fila più corta
+	Cassa_t *cassa_scelta = NULL;
+
+	for (int i = 0; i < K; ++i)
+	{
+		// Se la cassa e' attiva e se la cassa scelta e' NULL oppure con coda più lunga viene scelta
+		if ((cassa_scelta == NULL || cassa_scelta->q->qlen > casse[i].q->qlen) && casse[i].active == 1)
+			cassa_scelta = casse + i;
+	}
+
+	return cassa_scelta;
+}
+
 void mettiInFila(Cliente_t *cliente, Cassa_t *cassa)
 {
 	// Si mette in fila mandando un segnale al cassiere
@@ -161,7 +176,7 @@ Cassa_t *scegliCassa(Cliente_t *cliente, Cassa_t *casse, int K)
 int aspettaInCoda(Cliente_t *cliente, Cassa_t *casse, int K)
 {
 	int cambi_cassa = 0;
-	long intervallo = 500000;
+	long intervallo = 5000;
 	struct timespec ts;
 	Cassa_t *cassa_scelta = NULL;
 	cassa_scelta = scegliCassa(cliente, casse, K);
@@ -172,15 +187,17 @@ int aspettaInCoda(Cliente_t *cliente, Cassa_t *casse, int K)
 	{
 		clock_gettime(CLOCK_REALTIME, &ts);
 		summstotimespec(&ts, intervallo);
+		// ts.tv_sec += 20;
 
 		Pthread_cond_timedwait(&cliente->cond, &cliente->mtx, &ts);
+		// Pthread_cond_wait(&cliente->cond, &cliente->mtx);
 
 		// Se il cliente non è stato ancora servito, valuta se cambiare cassa
 		if (!cliente->servito)
 		{
 			int posizione = calcolaPosizioneInCoda(cassa_scelta->q, cliente->id);
-			Cassa_t *minCassa = getMinCoda(casse, K);
-			if (length(minCassa->q) < posizione)
+			Cassa_t *minCassa = getMinCodaNoMtx(casse, K);
+			if (minCassa->q->qlen < posizione)
 			{
 				cambi_cassa++;
 				mettiInFila(cliente, minCassa);
@@ -371,13 +388,17 @@ void *InviaCoda(void *args)
 		if (cassa->active == 1)
 		{
 			message.len = length(cassa->q);
-
-			int operation;
-
-			SYSCALL(notused, writen(sockfd, &message, sizeof(msg_t)), "writen client");
-
-			SYSCALL(notused, readn(sockfd, &operation, sizeof(int)), "read");
+			message.active = 1;
+		} else {
+			message.active = 0;
 		}
+
+		int operation;
+
+		SYSCALL(notused, writen(sockfd, &message, sizeof(msg_t)), "writen client");
+
+		SYSCALL(notused, readn(sockfd, &operation, sizeof(int)), "read");
+		
 
 		msleep(intervallo);
 	}

@@ -53,6 +53,7 @@ typedef struct threadDirettoreArgs
 typedef struct msg {
     int len;
     int cassa_id;
+	int active;
 } msg_t;
 
 

@@ -28,11 +28,14 @@ int calcolaScelta(int *casse, int K, int S1, int S2)
 	Pthread_mutex_lock(&casse_mtx);
 	for (int i = 0; i < K; i++)
 	{
-		// printf("Lunghezza coda alla cassa %d: %d \n", i, casse[i]);
-		if (casse[i] <= 1)
-			count_max1cliente++;
-		if (casse[i] >= S2)
-			count_minS2clienti++;
+		if (casse[i] != CASSACHIUSA)
+		{
+			// printf("Lunghezza coda alla cassa %d: %d \n", i, casse[i]);
+			if (casse[i] <= 1)
+				count_max1cliente++;
+			if (casse[i] >= S2)
+				count_minS2clienti++;
+		}
 	}
 	Pthread_mutex_unlock(&casse_mtx);
 
@@ -53,33 +56,36 @@ int calcolaScelta(int *casse, int K, int S1, int S2)
 
 void *threadF(void *arg)
 {
-    assert(arg);
-	int *casse = ((threadFArgs_t*)arg)->casse;
-	int K = ((threadFArgs_t*)arg)->K;
-	int S1 = ((threadFArgs_t*)arg)->S1;
-	int S2 = ((threadFArgs_t*)arg)->S2;
-    long connfd = ((threadFArgs_t*)arg)->connfd;
+	assert(arg);
+	int *casse = ((threadFArgs_t *)arg)->casse;
+	int K = ((threadFArgs_t *)arg)->K;
+	int S1 = ((threadFArgs_t *)arg)->S1;
+	int S2 = ((threadFArgs_t *)arg)->S2;
+	long connfd = ((threadFArgs_t *)arg)->connfd;
 	int success_message = 1;
 
-    do
-    {
+	do
+	{
 		int notused;
 		msg_t message;
 		SYSCALL(notused, readn(connfd, &message, sizeof(msg_t)), "readn");
 
-		if(message.len == -1) break;
+		if (message.len == -1)
+			break;
 
 		// Controlla se ad inviare il messaggio è il thread nel processo supermercato incaricato di aprire e chiudere le casse
-		if(message.cassa_id == DIRETTOREID) {
+		if (message.cassa_id == DIRETTOREID)
+		{
 			// Calcola se devono essre aperte o chiuse delle casse
 			int scelta = calcolaScelta(casse, K, S1, S2);
 			SYSCALL(notused, writen(connfd, &scelta, sizeof(int)), "writen server");
+		}
+		else
+		{
 
-		} else {
-			
 			// Se è una cassa che sta comunicando la lunghezza della sua coda, aggiorna l'array e invia un messaggio di successo
 			Pthread_mutex_lock(&casse_mtx);
-			casse[message.cassa_id - 1] = message.len;
+			casse[message.cassa_id - 1] = message.active ? message.len : CASSACHIUSA;
 			Pthread_mutex_unlock(&casse_mtx);
 
 			// printf("%d, %d\n", message.len, message.cassa_id);
@@ -87,40 +93,39 @@ void *threadF(void *arg)
 			SYSCALL(notused, writen(connfd, &success_message, sizeof(int)), "writen server");
 		}
 
-    } while (1);
-    close(connfd);
-    return NULL;
+	} while (1);
+	close(connfd);
+	return NULL;
 }
 
 void spawn_thread(long connfd, int *casse, int K, int S1, int S2)
 {
-    pthread_attr_t thattr;
-    pthread_t thid;
+	pthread_attr_t thattr;
+	pthread_t thid;
 	threadFArgs_t threadFARGS = {casse, K, S1, S2, connfd};
 
-    if (pthread_attr_init(&thattr) != 0)
-    {
-        fprintf(stderr, "pthread_attr_init FALLITA\n");
-        close(connfd);
-        return;
-    }
-    // settiamo il thread in modalità detached
-    if (pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_DETACHED) != 0)
-    {
-        fprintf(stderr, "pthread_attr_setdetachstate FALLITA\n");
-        pthread_attr_destroy(&thattr);
-        close(connfd);
-        return;
-    }
-    if (pthread_create(&thid, &thattr, threadF, &threadFARGS) != 0)
-    {
-        fprintf(stderr, "pthread_create FALLITA");
-        pthread_attr_destroy(&thattr);
-        close(connfd);
-        return;
-    }
+	if (pthread_attr_init(&thattr) != 0)
+	{
+		fprintf(stderr, "pthread_attr_init FALLITA\n");
+		close(connfd);
+		return;
+	}
+	// settiamo il thread in modalità detached
+	if (pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_DETACHED) != 0)
+	{
+		fprintf(stderr, "pthread_attr_setdetachstate FALLITA\n");
+		pthread_attr_destroy(&thattr);
+		close(connfd);
+		return;
+	}
+	if (pthread_create(&thid, &thattr, threadF, &threadFARGS) != 0)
+	{
+		fprintf(stderr, "pthread_create FALLITA");
+		pthread_attr_destroy(&thattr);
+		close(connfd);
+		return;
+	}
 }
-
 
 int main(int argc, char *argv[])
 {
@@ -140,7 +145,6 @@ int main(int argc, char *argv[])
 		S1 = atoi(argv[2]);
 		S2 = atoi(argv[3]);
 	}
-
 
 	// cancello il socket file se esiste
 	cleanup();
