@@ -14,6 +14,7 @@ cs_sock
 
 *.o
 *.a
+*.log
 
 supermercato
 direttore

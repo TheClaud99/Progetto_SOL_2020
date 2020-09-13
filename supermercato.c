@@ -16,6 +16,8 @@ typedef struct thInvia_args
 	long intervallo;
 } thInvia_args_t;
 
+static FILE *logfile; //File containing stats of the execution
+
 int calcolaPosizioneInCoda(Queue_t *q, int id)
 {
 	int pos = 1;
@@ -83,7 +85,7 @@ void emptyQueue(Cassa_t *cassa)
 	}
 }
 
-void FaiAcquisti(Cliente_t *cliente, int T, int P)
+long FaiAcquisti(Cliente_t *cliente, int T, int P)
 {
 	unsigned int seed = cliente->id;
 	long r = 10 + rand_r(&seed) % (T - 10);
@@ -93,6 +95,8 @@ void FaiAcquisti(Cliente_t *cliente, int T, int P)
 	msleep(r);
 	cliente->nprod = rand_r(&seed) % P;
 	Pthread_mutex_unlock(&cliente->mtx);
+
+	return r;
 }
 
 void ServiCliente(Cassa_t *cassa, long t_cassiere)
@@ -154,10 +158,11 @@ Cassa_t *scegliCassa(Cliente_t *cliente, Cassa_t *casse, int K)
 	return cassa_scelta;
 }
 
-void aspettaInCoda(Cliente_t *cliente, Cassa_t *casse, int K)
+int aspettaInCoda(Cliente_t *cliente, Cassa_t *casse, int K)
 {
-	long intervallo = 50;
-	struct timespec ts = {0, intervallo};
+	int cambi_cassa = 0;
+	long intervallo = 500000;
+	struct timespec ts;
 	Cassa_t *cassa_scelta = NULL;
 	cassa_scelta = scegliCassa(cliente, casse, K);
 
@@ -177,6 +182,7 @@ void aspettaInCoda(Cliente_t *cliente, Cassa_t *casse, int K)
 			Cassa_t *minCassa = getMinCoda(casse, K);
 			if (length(minCassa->q) < posizione)
 			{
+				cambi_cassa++;
 				mettiInFila(cliente, minCassa);
 				cassa_scelta = minCassa;
 				printf("Cambio coda cliente %d a cassa %d\n", cliente->id, cassa_scelta->thid);
@@ -184,6 +190,8 @@ void aspettaInCoda(Cliente_t *cliente, Cassa_t *casse, int K)
 		}
 	}
 	Pthread_mutex_unlock(&cliente->mtx);
+
+	return cambi_cassa;
 }
 
 // thread cliente
@@ -195,6 +203,11 @@ void *Cliente(void *arg)
 	int K = ((threadClienteArgs_t *)arg)->K;
 	int T = ((threadClienteArgs_t *)arg)->T;
 	int P = ((threadClienteArgs_t *)arg)->P;
+	int cambi_cassa;
+	long tempo_acquisti;
+	clock_t t;
+	double tempo_in_coda;
+   	
 	// int S = ((threadClienteArgs_t *)arg)->S;
 
 	if (pthread_mutex_init(&cliente->mtx, NULL) != 0)
@@ -209,9 +222,13 @@ void *Cliente(void *arg)
 		exit(EXIT_FAILURE);
 	}
 
-	FaiAcquisti(cliente, T, P);
+	tempo_acquisti = FaiAcquisti(cliente, T, P);
+	t = clock();
+	cambi_cassa = aspettaInCoda(cliente, casse, K);
+	t = clock() - t;
+	tempo_in_coda = ((double)t)/CLOCKS_PER_SEC; // calculate the elapsed time
 
-	aspettaInCoda(cliente, casse, K);
+	fprintf(logfile, "CUSTOMER -> | id customer:%d | n. bought products:%d | time in the supermarket: %0.3f s | time in queue: %0.3f s | n. queues checked: %d | \n", cliente->id, cliente->nprod, (double)tempo_acquisti / 1000, tempo_in_coda, cambi_cassa);
 
 	fflush(stdout);
 	pthread_exit(NULL);
@@ -220,7 +237,8 @@ void *Cliente(void *arg)
 void apriCassa(Cassa_t *casse, int K)
 {
 
-	if(casse == NULL) return;
+	if (casse == NULL)
+		return;
 
 	Cassa_t *cassa_scelta = NULL;
 	int i = 0;
@@ -256,7 +274,8 @@ int chiudiCassa(Cassa_t *casse, int K)
 	for (int i = 0; i < K; ++i)
 	{
 		// Se la cassa e' attiva e se la cassa scelta e' NULL oppure con coda più lunga viene scelta
-		if(isActive(&casse[i])) {
+		if (isActive(&casse[i]))
+		{
 			conut_aperte++;
 			if (cassa_scelta == NULL || length(cassa_scelta->q) > length(casse[i].q))
 				cassa_scelta = casse + i;
@@ -269,7 +288,8 @@ int chiudiCassa(Cassa_t *casse, int K)
 	}
 	else
 	{
-		if(conut_aperte > 1) {
+		if (conut_aperte > 1)
+		{
 			Pthread_mutex_lock(&cassa_scelta->mtx);
 			cassa_scelta->active = 0;
 			Pthread_cond_signal(&cassa_scelta->cond);
@@ -348,7 +368,8 @@ void *InviaCoda(void *args)
 
 	while (1)
 	{
-		if(cassa->active == 1) {
+		if (cassa->active == 1)
+		{
 			message.len = length(cassa->q);
 
 			int operation;
@@ -437,7 +458,7 @@ void initCassieri(pthread_t **th, Cassa_t **thARGS, int K, int TP)
 		(*thARGS)[i].q = initQueue();
 	}
 
-	for (int i = 0; i < K; ++i) 
+	for (int i = 0; i < K; ++i)
 	{
 		if (pthread_create((*th + i), NULL, Cassiere, (*thARGS + i)) != 0)
 		{
@@ -488,7 +509,6 @@ static void gestore(int signum)
 
 int main(int argc, char **argv)
 {
-
 	struct sigaction s;
 	/* inizializzo s a 0*/
 	memset(&s, 0, sizeof(s));
@@ -542,6 +562,12 @@ int main(int argc, char **argv)
 		TP = atoi(argv[9]);
 	}
 
+	if ((logfile = fopen("logfile.log", "w")) == NULL)
+	{
+		fprintf(stderr, "Stats file opening failed");
+		exit(EXIT_FAILURE);
+	}
+
 	initCassieri(&th_cassieri, &casse, K, TP);
 
 	threadDirettoreArgs_t thDirettoreARGS = {K, S1, S2, casse};
@@ -586,6 +612,7 @@ int main(int argc, char **argv)
 		}
 	}
 
+	fclose(logfile);
 	free(th_clienti);
 	free(th_new_clienti);
 	free(th_cassieri);
