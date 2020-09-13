@@ -166,7 +166,7 @@ void aspettaInCoda(Cliente_t *cliente, Cassa_t *casse, int K)
 	while (cliente->servito == 0)
 	{
 		clock_gettime(CLOCK_REALTIME, &ts);
-		ts.tv_sec += 5;
+		summstotimespec(&ts, intervallo);
 
 		Pthread_cond_timedwait(&cliente->cond, &cliente->mtx, &ts);
 
