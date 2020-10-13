@@ -584,11 +584,7 @@ int main(int argc, char **argv)
 		TP = atoi(argv[9]);
 	}
 
-	if ((logfile = fopen("logfile.log", "w")) == NULL)
-	{
-		fprintf(stderr, "Stats file opening failed");
-		exit(EXIT_FAILURE);
-	}
+	CHECKNULL(logfile, fopen("logfile.log", "w"), "Opening logfile")
 
 	initCassieri(&th_cassieri, &casse, K, TP);
 
