@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <pthread.h>
-#include <conn.h>
-#include "queue.h"
+#include "conn.h"
 #include "global.h"
 
 typedef struct threadFArgs

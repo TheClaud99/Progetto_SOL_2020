@@ -5,8 +5,7 @@
 #include <errno.h>
 #include <signal.h>
 #include <string.h>
-#include <conn.h>
-#include <time.h>
+#include "conn.h"
 #include "queue.h"
 #include "global.h"
 
@@ -331,7 +330,7 @@ void *ComunicazioneDirettore(void *args)
 	int sockfd;
 	int count_aperte = K;
 
-	SYSCALL(sockfd, socket(AF_UNIX, SOCK_STREAM, 0), "socket");
+	SYSCALL(sockfd, socket(AF_UNIX, SOCK_STREAM, 0), "socket")
 
 	msg_t message = {0, DIRETTOREID};
 	int notused;
