@@ -20,6 +20,12 @@ typedef struct Cassa
 	pthread_cond_t cond; // Segnala la disattivazione o l'arrivo di un cliente
 } Cassa_t;
 
+typedef struct threadCassaArgs
+{
+	int *clienti_attivi;
+	Cassa_t cassa;
+} threadCassaArgs_t;
+
 typedef struct Cliente
 {
 	int id;

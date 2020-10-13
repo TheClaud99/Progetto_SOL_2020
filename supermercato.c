@@ -536,6 +536,8 @@ int main(int argc, char **argv)
 	/* installo nuovo gestore s */
 	ec_meno1(sigaction(SIGINT, &s, NULL), "Signal handler error");
 
+	int clienti_attivi = 0;
+
 	// Numero di casse
 	int K = 2;
 
@@ -598,6 +600,7 @@ int main(int argc, char **argv)
 	}
 
 	initClienti(&th_clienti, K, C, T, P, S, casse);
+	clienti_attivi = C;
 
 	if (!th_cassieri || !th_clienti)
 	{
@@ -612,8 +615,12 @@ int main(int argc, char **argv)
 			fprintf(stderr, "pthread_join failed\n");
 		}
 
-		if (C - i == E)
+		clienti_attivi--;
+
+		if (C - i == E) {
 			initClienti(&th_new_clienti, K, E, T, P, S, casse);
+			clienti_attivi += E;
+		}
 	}
 
 	for (int i = 0; i < E; i++)
