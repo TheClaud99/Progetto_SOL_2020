@@ -33,4 +33,4 @@ test1:
 clean: 
 	rm -f $(TARGETS)
 cleanall: clean
-	\rm -f *.o *~ *.a
+	\rm -f *.o *~ *.a *.log
