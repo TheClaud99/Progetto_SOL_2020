@@ -606,10 +606,7 @@ int main(int argc, char **argv)
 
 	for (int i = 0; i < C; ++i)
 	{
-		if (pthread_join(th_clienti[i], NULL) == -1)
-		{
-			fprintf(stderr, "pthread_join failed\n");
-		}
+		ec_meno1(pthread_join(th_clienti[i], NULL), "pthread_join failed")
 
 		clienti_attivi--;
 
@@ -621,18 +618,12 @@ int main(int argc, char **argv)
 
 	for (int i = 0; i < E; i++)
 	{
-		if (pthread_join(th_new_clienti[i], NULL) == -1)
-		{
-			fprintf(stderr, "pthread_join failed\n");
-		}
+		ec_meno1(pthread_join(th_new_clienti[i], NULL), "pthread_join clienti failed")
 	}
 
 	for (int i = 0; i < K; i++)
 	{
-		if (pthread_join(th_cassieri[i], NULL) == -1)
-		{
-			fprintf(stderr, "pthread_join failed\n");
-		}
+		ec_meno1(pthread_join(th_cassieri[i], NULL), "pthread_join cassieri failed")
 	}
 
 	fclose(logfile);
