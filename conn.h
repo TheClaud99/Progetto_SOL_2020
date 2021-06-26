@@ -11,7 +11,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define SOCKNAME     "./cs_sock"
+
+// #define SOCKNAME     "./cs_sock"
+
+// Usare su windows con wsl
+#define SOCKNAME     "/tmp/cs_sock"
+
 #define MAXBACKLOG   32
 
 #define SYSCALL(r,c,e) \
